@@ -96,6 +96,20 @@
 .obsidian-issues-priority.is-high { color: var(--interactive-accent); }
 .obsidian-issues-priority.is-critical { color: var(--text-error); }
 
+.obsidian-issues-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+}
+
+.obsidian-issues-label {
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
 .obsidian-issues-form {
   display: flex;
   flex-direction: column;

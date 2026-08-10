@@ -19,6 +19,7 @@ export class IssueModal extends Modal {
   private titleInput!: TextComponent;
   private priorityDropdown!: DropdownComponent;
   private projectInput!: TextComponent;
+  private labelsInput!: TextComponent;
 
   constructor(app: App, private options: IssueModalOptions) {
     super(app);
@@ -76,6 +77,20 @@ export class IssueModal extends Modal {
       .setPlaceholder('Enter project name')
       .setValue(this.options.initial.project ?? '');
 
+    const labelsRow = form.createDiv({ cls: 'obsidian-issues-field' });
+    labelsRow.createEl(
+      'label',
+      { text: 'Labels', cls: 'obsidian-issues-field-label' },
+    );
+    this.labelsInput = new TextComponent(
+      labelsRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+    );
+    this.labelsInput
+      .setPlaceholder('Comma-separated (e.g. GitHub, portfolio)')
+      .setValue(
+        this.options.initial.labels?.join(', ') ?? '',
+      );
+
     this.buildButtons(form);
   }
 
@@ -115,6 +130,11 @@ export class IssueModal extends Modal {
       status: this.options.initial.status ?? 'open',
       priority: this.priorityDropdown.getValue() as IssuePriority,
       project: this.projectInput.getValue().trim(),
+      labels: this.labelsInput
+        .getValue()
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0),
       created:
         this.options.initial.created ?? new Date().toISOString().slice(0, 10),
     };
