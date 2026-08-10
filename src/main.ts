@@ -1,114 +1,84 @@
-import {
-	Editor,
-	MarkdownView,
-	MarkdownFileInfo,
-	Modal,
-	Notice,
-	Plugin,
-} from 'obsidian';
-import {
-	DEFAULT_SETTINGS,
-	MyPluginSettings,
-	SampleSettingTab,
-} from './settings';
+import { Plugin } from 'obsidian';
+import { ISSUES_FOLDER, VIEW_TYPE_ISSUES } from './constants';
+import { IssueService } from './issue-service';
+import { IssuesView } from './issues-view';
 
-// Remember to rename these classes and interfaces!
+export default class ObsidianIssuesPlugin extends Plugin {
+  private issueService!: IssueService;
 
-export default class MyPlugin extends Plugin {
-	settings!: MyPluginSettings;
+  async onload(): Promise<void> {
+    this.issueService = new IssueService(this.app);
 
-	async onload() {
-		await this.loadSettings();
+    this.registerView(
+      VIEW_TYPE_ISSUES,
+      (leaf) => new IssuesView(leaf, this.issueService),
+    );
 
-		// This creates an icon in the left ribbon.
-		this.addRibbonIcon('dice', 'Sample', (_evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
+    this.addCommand({
+      id: 'open-issues',
+      name: 'Open Issues',
+      callback: () => {
+        void this.activateIssuesView();
+      },
+    });
 
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status bar text');
+    this.addRibbonIcon('circle-dot', 'Open Issues', () => {
+      void this.activateIssuesView();
+    });
 
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-modal-simple',
-			name: 'Open modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			},
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (
-				editor: Editor,
-				_ctx: MarkdownView | MarkdownFileInfo,
-			) => {
-				editor.replaceSelection('Sample editor command');
-			},
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-modal-complex',
-			name: 'Open modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView =
-					this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
+    const refreshForPath = (path: string): void => {
+      if (this.isIssuesPath(path)) {
+        void this.refreshOpenIssueViews();
+      }
+    };
 
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
-				}
-				return false;
-			},
-		});
+    this.registerEvent(
+      this.app.vault.on('create', (file) => refreshForPath(file.path)),
+    );
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+    this.registerEvent(
+      this.app.vault.on('modify', (file) => refreshForPath(file.path)),
+    );
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(activeDocument, 'click', (_evt: MouseEvent) => {
-			new Notice('Click');
-		});
+    this.registerEvent(
+      this.app.vault.on('delete', (file) => refreshForPath(file.path)),
+    );
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(
-			window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000),
-		);
-	}
+    this.registerEvent(
+      this.app.vault.on('rename', (file, oldPath) => {
+        if (this.isIssuesPath(file.path) || this.isIssuesPath(oldPath)) {
+          void this.refreshOpenIssueViews();
+        }
+      }),
+    );
+  }
 
-	onunload() {}
+  onunload(): void {
+    this.app.workspace.detachLeavesOfType(VIEW_TYPE_ISSUES);
+  }
 
-	async loadSettings() {
-		this.settings = Object.assign(
-			{},
-			DEFAULT_SETTINGS,
-			(await this.loadData()) as Partial<MyPluginSettings>,
-		);
-	}
+  private async activateIssuesView(): Promise<void> {
+    await this.app.workspace.ensureSideLeaf(VIEW_TYPE_ISSUES, 'right', {
+      active: true,
+      reveal: true,
+    });
+  }
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
-}
+  private async refreshOpenIssueViews(): Promise<void> {
+    const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_ISSUES);
 
-class SampleModal extends Modal {
-	onOpen() {
-		const { contentEl } = this;
-		contentEl.setText('Woah!');
-	}
+    await Promise.all(
+      leaves.map(async (leaf) => {
+        await leaf.loadIfDeferred();
 
-	onClose() {
-		const { contentEl } = this;
-		contentEl.empty();
-	}
+        if (leaf.view instanceof IssuesView) {
+          await leaf.view.refresh();
+        }
+      }),
+    );
+  }
+
+  private isIssuesPath(path: string): boolean {
+    return path === ISSUES_FOLDER || path.startsWith(`${ISSUES_FOLDER}/`);
+  }
 }
