@@ -1,8 +1,80 @@
-/*
+.obsidian-issues-view {
+  padding: var(--size-4-3);
+}
 
-This CSS file will be included with your plugin, and
-available in the app when your plugin is enabled.
+.obsidian-issues-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+}
 
-If your plugin does not need CSS, delete this file.
+.obsidian-issues-header h2 {
+  margin: 0;
+  font-size: var(--font-ui-large);
+}
 
-*/
+.obsidian-issues-new-button {
+  white-space: nowrap;
+}
+
+.obsidian-issues-summary {
+  display: flex;
+  gap: var(--size-4-4);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  margin-bottom: var(--size-4-3);
+}
+
+.obsidian-issues-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+}
+
+.obsidian-issues-row {
+  border-radius: var(--radius-s);
+  padding: var(--size-4-2);
+  cursor: pointer;
+}
+
+.obsidian-issues-row:hover,
+.obsidian-issues-row:focus-visible {
+  background: var(--background-modifier-hover);
+  outline: none;
+}
+
+.obsidian-issues-row-top {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+}
+
+.obsidian-issues-status-dot {
+  color: var(--interactive-accent);
+  line-height: 1.4;
+}
+
+.obsidian-issues-status-dot.is-closed {
+  color: var(--text-muted);
+}
+
+.obsidian-issues-title {
+  font-weight: var(--font-medium);
+  overflow-wrap: anywhere;
+}
+
+.obsidian-issues-meta {
+  display: flex;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-1);
+  margin-left: 1.4em;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.obsidian-issues-empty {
+  color: var(--text-muted);
+  padding: var(--size-4-3) 0;
+}
