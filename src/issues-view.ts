@@ -97,6 +97,10 @@ export class IssuesView extends ItemView {
         void this.toggleStatus(issue);
       });
       topLine.createSpan({ text: issue.title, cls: 'obsidian-issues-title' });
+      topLine.createSpan({
+        text: issue.priority.toUpperCase(),
+        cls: `obsidian-issues-priority is-${issue.priority}`,
+      });
 
       const meta = row.createDiv({ cls: 'obsidian-issues-meta' });
       meta.createSpan({ text: issue.id });

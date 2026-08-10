@@ -1,5 +1,12 @@
-import { App, Modal, Notice, TextComponent } from 'obsidian';
-import type { IssueData } from './types';
+import {
+  App,
+  DropdownComponent,
+  Modal,
+  Notice,
+  TextComponent,
+} from 'obsidian';
+import { ISSUE_PRIORITIES, ISSUE_PRIORITY_LABELS } from './constants';
+import type { IssueData, IssuePriority } from './types';
 
 export interface IssueModalOptions {
   title: string;
@@ -10,6 +17,7 @@ export interface IssueModalOptions {
 
 export class IssueModal extends Modal {
   private titleInput!: TextComponent;
+  private priorityDropdown!: DropdownComponent;
 
   constructor(app: App, private options: IssueModalOptions) {
     super(app);
@@ -36,6 +44,24 @@ export class IssueModal extends Modal {
     this.titleInput
       .setPlaceholder('Enter issue title')
       .setValue(this.options.initial.title ?? '');
+
+    const priorityRow = form.createDiv({ cls: 'obsidian-issues-field' });
+    priorityRow.createEl(
+      'label',
+      { text: 'Priority', cls: 'obsidian-issues-field-label' },
+    );
+    this.priorityDropdown = new DropdownComponent(
+      priorityRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+    );
+    for (const priority of ISSUE_PRIORITIES) {
+      this.priorityDropdown.addOption(
+        ISSUE_PRIORITY_LABELS[priority],
+        priority,
+      );
+    }
+    this.priorityDropdown.setValue(
+      this.options.initial.priority ?? 'medium',
+    );
 
     this.buildButtons(form);
   }
@@ -74,6 +100,7 @@ export class IssueModal extends Modal {
     const data: IssueData = {
       title,
       status: this.options.initial.status ?? 'open',
+      priority: this.priorityDropdown.getValue() as IssuePriority,
       created:
         this.options.initial.created ?? new Date().toISOString().slice(0, 10),
     };

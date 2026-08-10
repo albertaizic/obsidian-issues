@@ -4,7 +4,7 @@ import {
   ISSUE_FILENAME_PATTERN,
   FRONTMATTER_FIELD_ORDER,
 } from './constants';
-import type { Issue, IssueData, IssueStatus } from './types';
+import type { Issue, IssueData, IssuePriority, IssueStatus } from './types';
 
 export class IssueService {
   constructor(private readonly app: App) {}
@@ -81,6 +81,7 @@ export class IssueService {
       id: this.toStringValue(frontmatter.id, file.basename),
       title: this.toStringValue(frontmatter.title, file.basename),
       status: this.toStringValue(frontmatter.status, 'open') as IssueStatus,
+      priority: this.toStringValue(frontmatter.priority, 'medium') as IssuePriority,
       created: this.toStringValue(
         frontmatter.created,
         new Date().toISOString().slice(0, 10),
