@@ -54,10 +54,22 @@
 .obsidian-issues-status-dot {
   color: var(--interactive-accent);
   line-height: 1.4;
+  cursor: pointer;
+}
+
+.obsidian-issues-status-dot:hover {
+  opacity: 0.7;
 }
 
 .obsidian-issues-status-dot.is-closed {
   color: var(--text-muted);
+}
+
+.obsidian-issues-edit-button {
+  margin-left: auto;
+  padding: 0 var(--size-4-1);
+  display: flex;
+  align-items: center;
 }
 
 .obsidian-issues-title {
@@ -77,4 +89,57 @@
 .obsidian-issues-empty {
   color: var(--text-muted);
   padding: var(--size-4-3) 0;
+}
+
+.obsidian-issues-priority {
+  font-weight: var(--font-semibold);
+  font-size: var(--font-ui-smaller);
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.obsidian-issues-priority.is-low { color: var(--text-success); }
+.obsidian-issues-priority.is-medium { color: var(--text-warning); }
+.obsidian-issues-priority.is-high { color: var(--interactive-accent); }
+.obsidian-issues-priority.is-critical { color: var(--text-error); }
+
+.obsidian-issues-labels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+}
+
+.obsidian-issues-label {
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.obsidian-issues-due {
+  color: var(--text-warning);
+}
+
+.obsidian-issues-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+}
+
+.obsidian-issues-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+}
+
+.obsidian-issues-field-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.obsidian-issues-modal-buttons {
+  display: flex;
+  gap: var(--size-4-2);
+  justify-content: flex-end;
 }
