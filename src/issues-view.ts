@@ -1,4 +1,4 @@
-import { ItemView, moment, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, moment, Notice, setIcon, WorkspaceLeaf } from 'obsidian';
 import { VIEW_TYPE_ISSUES } from './constants';
 import { IssueModal } from './issue-modal';
 import type { Issue } from './types';
@@ -46,6 +46,7 @@ export class IssuesView extends ItemView {
       new IssueModal(this.app, {
         title: 'New issue',
         initial: {},
+        statusEditable: false,
         submitLabel: 'Create',
         onSubmit: async (data) => {
           newIssueButton.disabled = true;
@@ -102,6 +103,16 @@ export class IssuesView extends ItemView {
         cls: `obsidian-issues-priority is-${issue.priority}`,
       });
 
+      const editButton = topLine.createEl('button', {
+        cls: 'obsidian-issues-edit-button mod-secondary',
+        title: 'Edit issue',
+      });
+      setIcon(editButton, 'pencil');
+      editButton.addEventListener('click', (e: MouseEvent) => {
+        e.stopPropagation();
+        void this.editIssue(issue);
+      });
+
       const meta = row.createDiv({ cls: 'obsidian-issues-meta' });
       meta.createSpan({ text: issue.id });
       if (issue.project) {
@@ -147,5 +158,23 @@ export class IssuesView extends ItemView {
       console.error('Obsidian Issues: failed to toggle status', error);
       new Notice('Could not update issue. Check the developer console.');
     }
+  }
+
+  private editIssue(issue: Issue): void {
+    new IssueModal(this.app, {
+      title: 'Edit issue',
+      initial: issue,
+      statusEditable: true,
+      submitLabel: 'Save',
+      onSubmit: async (data) => {
+        try {
+          await this.issueService.updateIssue(issue.file, data);
+          await this.refresh();
+        } catch (error) {
+          console.error('Obsidian Issues: failed to update issue', error);
+          new Notice('Could not save issue. Check the developer console.');
+        }
+      },
+    }).open();
   }
 }

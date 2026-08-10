@@ -65,6 +65,13 @@
   color: var(--text-muted);
 }
 
+.obsidian-issues-edit-button {
+  margin-left: auto;
+  padding: 0 var(--size-4-1);
+  display: flex;
+  align-items: center;
+}
+
 .obsidian-issues-title {
   font-weight: var(--font-medium);
   overflow-wrap: anywhere;

@@ -5,18 +5,20 @@ import {
   Notice,
   TextComponent,
 } from 'obsidian';
-import { ISSUE_PRIORITIES, ISSUE_PRIORITY_LABELS } from './constants';
-import type { IssueData, IssuePriority } from './types';
+import { ISSUE_PRIORITIES, ISSUE_PRIORITY_LABELS, ISSUE_STATUSES } from './constants';
+import type { IssueData, IssuePriority, IssueStatus } from './types';
 
 export interface IssueModalOptions {
   title: string;
   initial: Partial<IssueData>;
+  statusEditable: boolean;
   submitLabel: string;
   onSubmit: (data: IssueData) => void | Promise<void>;
 }
 
 export class IssueModal extends Modal {
   private titleInput!: TextComponent;
+  private statusDropdown: DropdownComponent | null = null;
   private priorityDropdown!: DropdownComponent;
   private projectInput!: TextComponent;
   private labelsInput!: TextComponent;
@@ -47,6 +49,26 @@ export class IssueModal extends Modal {
     this.titleInput
       .setPlaceholder('Enter issue title')
       .setValue(this.options.initial.title ?? '');
+
+    if (this.options.statusEditable) {
+      const statusRow = form.createDiv({ cls: 'obsidian-issues-field' });
+      statusRow.createEl(
+        'label',
+        { text: 'Status', cls: 'obsidian-issues-field-label' },
+      );
+      this.statusDropdown = new DropdownComponent(
+        statusRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+      );
+      for (const status of ISSUE_STATUSES) {
+        this.statusDropdown.addOption(
+          status.charAt(0).toUpperCase() + status.slice(1),
+          status,
+        );
+      }
+      this.statusDropdown.setValue(
+        this.options.initial.status ?? 'open',
+      );
+    }
 
     const priorityRow = form.createDiv({ cls: 'obsidian-issues-field' });
     priorityRow.createEl(
@@ -139,7 +161,9 @@ export class IssueModal extends Modal {
 
     const data: IssueData = {
       title,
-      status: this.options.initial.status ?? 'open',
+      status: this.statusDropdown
+        ? (this.statusDropdown.getValue() as IssueStatus)
+        : (this.options.initial.status ?? 'open'),
       priority: this.priorityDropdown.getValue() as IssuePriority,
       project: this.projectInput.getValue().trim(),
       labels: this.labelsInput
