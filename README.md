@@ -76,11 +76,7 @@ The build produces `main.js` in the repository root. Obsidian loads the plugin f
 
 ## Screenshot
 
-After the first working run, create `assets/issues-sidebar.png` and add it here:
-
-```md
-![Obsidian Issues sidebar](assets/issues-sidebar.png)
-```
+![Alt Text](screenshots/v0.1-issue-tab.png)
 
 ## Roadmap
 
