@@ -1,6 +1,7 @@
 import { ItemView, moment, Notice, setIcon, WorkspaceLeaf } from 'obsidian';
 import { VIEW_TYPE_ISSUES } from './constants';
 import { IssueModal } from './issue-modal';
+import { getLabelColor, getLabelTextColor } from './labels';
 import type { Issue } from './types';
 import type { IssueService } from './issue-service';
 
@@ -122,10 +123,13 @@ export class IssuesView extends ItemView {
           cls: 'obsidian-issues-labels',
         });
         for (const label of issue.labels) {
-          labelsContainer.createSpan({
+          const color = getLabelColor(label);
+          const tag = labelsContainer.createSpan({
             text: label,
             cls: 'obsidian-issues-label',
           });
+          tag.style.backgroundColor = color;
+          tag.style.color = getLabelTextColor(color);
         }
       }
       if (issue.due) {
