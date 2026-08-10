@@ -1,4 +1,4 @@
-import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, moment, Notice, WorkspaceLeaf } from 'obsidian';
 import { VIEW_TYPE_ISSUES } from './constants';
 import { IssueModal } from './issue-modal';
 import type { Issue } from './types';
@@ -117,6 +117,12 @@ export class IssuesView extends ItemView {
             cls: 'obsidian-issues-label',
           });
         }
+      }
+      if (issue.due) {
+        meta.createSpan({
+          text: `Due ${moment(issue.due).format('MMM D')}`,
+          cls: 'obsidian-issues-due',
+        });
       }
 
       const openIssue = (): void => {

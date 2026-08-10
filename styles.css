@@ -110,6 +110,10 @@
   color: var(--text-muted);
 }
 
+.obsidian-issues-due {
+  color: var(--text-warning);
+}
+
 .obsidian-issues-form {
   display: flex;
   flex-direction: column;

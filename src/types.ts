@@ -9,6 +9,7 @@ export interface IssueData {
   priority: IssuePriority;
   project: string;
   labels: string[];
+  due: string;
   created: string;
 }
 
