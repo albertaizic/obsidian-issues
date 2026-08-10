@@ -244,6 +244,12 @@ export class IssuesView extends ItemView {
 
   private renderIssueRow(issue: Issue): void {
     const row = this.listEl!.createDiv({ cls: 'obsidian-issues-row' });
+    if (issue.status.toLowerCase() === 'closed') {
+      row.addClass('is-closed');
+    }
+    if (issue.due && issue.due < new Date().toISOString().slice(0, 10)) {
+      row.addClass('is-overdue');
+    }
     row.setAttr('role', 'button');
     row.setAttr('tabindex', '0');
 
