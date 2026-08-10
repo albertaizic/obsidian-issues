@@ -20,6 +20,7 @@ export class IssueModal extends Modal {
   private priorityDropdown!: DropdownComponent;
   private projectInput!: TextComponent;
   private labelsInput!: TextComponent;
+  private dueInput!: TextComponent;
 
   constructor(app: App, private options: IssueModalOptions) {
     super(app);
@@ -91,6 +92,17 @@ export class IssueModal extends Modal {
         this.options.initial.labels?.join(', ') ?? '',
       );
 
+    const dueRow = form.createDiv({ cls: 'obsidian-issues-field' });
+    dueRow.createEl(
+      'label',
+      { text: 'Due date', cls: 'obsidian-issues-field-label' },
+    );
+    this.dueInput = new TextComponent(
+      dueRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+    );
+    this.dueInput.inputEl.type = 'date';
+    this.dueInput.setValue(this.options.initial.due ?? '');
+
     this.buildButtons(form);
   }
 
@@ -135,6 +147,7 @@ export class IssueModal extends Modal {
         .split(',')
         .map((s) => s.trim())
         .filter((s) => s.length > 0),
+      due: this.dueInput.getValue(),
       created:
         this.options.initial.created ?? new Date().toISOString().slice(0, 10),
     };
