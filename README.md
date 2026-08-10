@@ -6,7 +6,7 @@ A GitHub Issues-inspired issue tracker for Obsidian. Issues are stored as normal
 
 This first milestone supports:
 
-- `Open Issues` command
+- `Open issues` command
 - right-sidebar Issues view
 - `+ New Issue` button
 - automatic `Issues/` folder creation
@@ -52,7 +52,7 @@ In Obsidian:
 2. Go to **Settings → Community plugins**.
 3. Turn off Restricted mode if necessary.
 4. Enable **Obsidian Issues**.
-5. Open the Command Palette and run **Open Issues**.
+5. Open the Command Palette and run **Open issues**.
 6. Click **+ New Issue**.
 
 You should now have:

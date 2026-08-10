@@ -16,13 +16,13 @@ export default class ObsidianIssuesPlugin extends Plugin {
 
     this.addCommand({
       id: 'open-issues',
-      name: 'Open Issues',
+      name: 'Open issues',
       callback: () => {
         void this.activateIssuesView();
       },
     });
 
-    this.addRibbonIcon('circle-dot', 'Open Issues', () => {
+    this.addRibbonIcon('circle-dot', 'Open issues', () => {
       void this.activateIssuesView();
     });
 
@@ -53,9 +53,7 @@ export default class ObsidianIssuesPlugin extends Plugin {
     );
   }
 
-  onunload(): void {
-    this.app.workspace.detachLeavesOfType(VIEW_TYPE_ISSUES);
-  }
+  onunload(): void {}
 
   private async activateIssuesView(): Promise<void> {
     await this.app.workspace.ensureSideLeaf(VIEW_TYPE_ISSUES, 'right', {

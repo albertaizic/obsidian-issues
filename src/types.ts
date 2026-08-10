@@ -1,6 +1,6 @@
 import type { TFile } from 'obsidian';
 
-export type IssueStatus = 'open' | 'closed' | string;
+export type IssueStatus = string;
 
 export interface Issue {
   id: string;
