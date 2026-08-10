@@ -100,7 +100,7 @@
 
 .obsidian-issues-priority.is-low { color: var(--text-success); }
 .obsidian-issues-priority.is-medium { color: var(--text-warning); }
-.obsidian-issues-priority.is-high { color: var(--interactive-accent); }
+.obsidian-issues-priority.is-high { color: hsl(30, 100%, 50%); }
 .obsidian-issues-priority.is-critical { color: var(--text-error); }
 
 .obsidian-issues-labels {
