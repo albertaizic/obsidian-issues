@@ -4,7 +4,7 @@ import {
   ISSUE_FILENAME_PATTERN,
   FRONTMATTER_FIELD_ORDER,
 } from './constants';
-import type { Issue, IssueStatus } from './types';
+import type { Issue, IssueData, IssueStatus } from './types';
 
 export class IssueService {
   constructor(private readonly app: App) {}
@@ -19,24 +19,15 @@ export class IssueService {
     await this.app.vault.createFolder(folderPath);
   }
 
-  async createIssue(): Promise<TFile> {
+  async createIssue(data: IssueData): Promise<TFile> {
     await this.ensureIssuesFolder();
 
     const id = this.getNextIssueId();
     const path = normalizePath(`${ISSUES_FOLDER}/${id}.md`);
-    const created = new Date().toISOString().slice(0, 10);
-
-    const content = [
-      '---',
-      `id: ${id}`,
-      'title: New issue',
-      'status: open',
-      `created: ${created}`,
-      '---',
-      '',
-      'Describe the issue here.',
-      '',
-    ].join('\n');
+    const content = this.buildFileContent(
+      this.serializeFrontmatter({ id, ...data }),
+      'Describe the issue here.\n',
+    );
 
     return this.app.vault.create(path, content);
   }
@@ -90,6 +81,10 @@ export class IssueService {
       id: this.toStringValue(frontmatter.id, file.basename),
       title: this.toStringValue(frontmatter.title, file.basename),
       status: this.toStringValue(frontmatter.status, 'open') as IssueStatus,
+      created: this.toStringValue(
+        frontmatter.created,
+        new Date().toISOString().slice(0, 10),
+      ),
       file,
     };
   }

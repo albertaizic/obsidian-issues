@@ -1,5 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import { VIEW_TYPE_ISSUES } from './constants';
+import { IssueModal } from './issue-modal';
 import type { Issue } from './types';
 import type { IssueService } from './issue-service';
 
@@ -42,7 +43,25 @@ export class IssuesView extends ItemView {
     });
 
     newIssueButton.addEventListener('click', () => {
-      void this.createIssueAndOpen(newIssueButton);
+      new IssueModal(this.app, {
+        title: 'New issue',
+        initial: {},
+        submitLabel: 'Create',
+        onSubmit: async (data) => {
+          newIssueButton.disabled = true;
+          try {
+            const file = await this.issueService.createIssue(data);
+            await this.refresh();
+            await this.app.workspace.getLeaf(false).openFile(file);
+            new Notice(`Created ${file.basename}`);
+          } catch (error) {
+            console.error('Obsidian Issues: failed to create issue', error);
+            new Notice('Could not create issue. Check the developer console.');
+          } finally {
+            newIssueButton.disabled = false;
+          }
+        },
+      }).open();
     });
 
     const issues = await this.issueService.listIssues();
@@ -104,22 +123,6 @@ export class IssuesView extends ItemView {
     } catch (error) {
       console.error('Obsidian Issues: failed to toggle status', error);
       new Notice('Could not update issue. Check the developer console.');
-    }
-  }
-
-  private async createIssueAndOpen(button: HTMLButtonElement): Promise<void> {
-    button.disabled = true;
-
-    try {
-      const file = await this.issueService.createIssue();
-      await this.refresh();
-      await this.app.workspace.getLeaf(false).openFile(file);
-      new Notice(`Created ${file.basename}`);
-    } catch (error) {
-      console.error('Obsidian Issues: failed to create issue', error);
-      new Notice('Could not create issue. Check the developer console.');
-    } finally {
-      button.disabled = false;
     }
   }
 }

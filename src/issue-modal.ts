@@ -1,0 +1,88 @@
+import { App, Modal, Notice, TextComponent } from 'obsidian';
+import type { IssueData } from './types';
+
+export interface IssueModalOptions {
+  title: string;
+  initial: Partial<IssueData>;
+  submitLabel: string;
+  onSubmit: (data: IssueData) => void | Promise<void>;
+}
+
+export class IssueModal extends Modal {
+  private titleInput!: TextComponent;
+
+  constructor(app: App, private options: IssueModalOptions) {
+    super(app);
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    this.titleEl.setText(this.options.title);
+
+    const form = contentEl.createDiv({ cls: 'obsidian-issues-form' });
+
+    const titleRow = form.createDiv({ cls: 'obsidian-issues-field' });
+    titleRow.createEl(
+      'label',
+      { text: 'Title', cls: 'obsidian-issues-field-label' },
+      (label) => {
+        label.htmlFor = 'obsidian-issues-title-input';
+      },
+    );
+    this.titleInput = new TextComponent(
+      titleRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+    );
+    this.titleInput.inputEl.id = 'obsidian-issues-title-input';
+    this.titleInput
+      .setPlaceholder('Enter issue title')
+      .setValue(this.options.initial.title ?? '');
+
+    this.buildButtons(form);
+  }
+
+  private buildButtons(container: HTMLElement): void {
+    const buttons = container.createDiv({
+      cls: 'obsidian-issues-modal-buttons',
+    });
+
+    const submitButton = buttons.createEl('button', {
+      text: this.options.submitLabel,
+      cls: 'mod-cta obsidian-issues-modal-submit',
+    });
+
+    submitButton.addEventListener('click', () => {
+      void this.handleSubmit();
+    });
+
+    const cancelButton = buttons.createEl('button', {
+      text: 'Cancel',
+      cls: 'mod-secondary',
+    });
+
+    cancelButton.addEventListener('click', () => {
+      this.close();
+    });
+  }
+
+  private async handleSubmit(): Promise<void> {
+    const title = this.titleInput.getValue().trim();
+    if (title.length === 0) {
+      new Notice('Title is required');
+      return;
+    }
+
+    const data: IssueData = {
+      title,
+      status: this.options.initial.status ?? 'open',
+      created:
+        this.options.initial.created ?? new Date().toISOString().slice(0, 10),
+    };
+
+    await this.options.onSubmit(data);
+    this.close();
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
+}
