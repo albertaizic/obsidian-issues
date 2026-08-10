@@ -107,6 +107,17 @@ export class IssuesView extends ItemView {
       if (issue.project) {
         meta.createSpan({ text: issue.project });
       }
+      if (issue.labels.length > 0) {
+        const labelsContainer = meta.createDiv({
+          cls: 'obsidian-issues-labels',
+        });
+        for (const label of issue.labels) {
+          labelsContainer.createSpan({
+            text: label,
+            cls: 'obsidian-issues-label',
+          });
+        }
+      }
 
       const openIssue = (): void => {
         void this.app.workspace.getLeaf(false).openFile(issue.file);

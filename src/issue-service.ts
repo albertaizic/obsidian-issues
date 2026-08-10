@@ -83,6 +83,7 @@ export class IssueService {
       status: this.toStringValue(frontmatter.status, 'open') as IssueStatus,
       priority: this.toStringValue(frontmatter.priority, 'medium') as IssuePriority,
       project: this.toStringValue(frontmatter.project, ''),
+      labels: this.toStringArrayValue(frontmatter.labels, []),
       created: this.toStringValue(
         frontmatter.created,
         new Date().toISOString().slice(0, 10),
