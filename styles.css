@@ -27,6 +27,39 @@
   margin-bottom: var(--size-4-3);
 }
 
+.obsidian-issues-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+  padding-bottom: var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-toolbar .obsidian-issues-label-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  align-items: center;
+}
+
+.obsidian-issues-label-filter {
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
+.obsidian-issues-label-filter.is-active {
+  opacity: 1;
+  border-color: var(--interactive-accent);
+}
+
 .obsidian-issues-list {
   display: flex;
   flex-direction: column;
@@ -43,6 +76,19 @@
 .obsidian-issues-row:focus-visible {
   background: var(--background-modifier-hover);
   outline: none;
+}
+
+.obsidian-issues-row.is-closed .obsidian-issues-title {
+  text-decoration: line-through;
+}
+
+.obsidian-issues-row.is-closed {
+  opacity: 0.6;
+}
+
+.obsidian-issues-row.is-overdue .obsidian-issues-due {
+  color: var(--text-error);
+  font-weight: var(--font-semibold);
 }
 
 .obsidian-issues-row-top {
@@ -65,7 +111,8 @@
   color: var(--text-muted);
 }
 
-.obsidian-issues-edit-button {
+.obsidian-issues-edit-button,
+.obsidian-issues-delete-button {
   margin-left: auto;
   padding: 0 var(--size-4-1);
   display: flex;
@@ -115,10 +162,89 @@
   padding: 0 var(--size-4-1);
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
+  line-height: 1.6;
+  white-space: nowrap;
 }
 
 .obsidian-issues-due {
   color: var(--text-warning);
+}
+
+.obsidian-issues-tag-input {
+  position: relative;
+}
+
+.obsidian-issues-tag-input-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  align-items: center;
+  min-height: 1.6em;
+}
+
+.obsidian-issues-tag-input-field {
+  border: none;
+  outline: none;
+  flex: 1;
+  min-width: 80px;
+  background: transparent;
+  padding: 0;
+  color: var(--text-normal);
+}
+
+.obsidian-issues-tag-input-field::placeholder {
+  color: var(--text-muted);
+}
+
+.obsidian-issues-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.obsidian-issues-tag-remove {
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+
+.obsidian-issues-tag-input-suggestions {
+  position: absolute;
+  z-index: 1000;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 4px;
+}
+
+.obsidian-issues-tag-input-suggestions.is-hidden {
+  display: none;
+}
+
+.obsidian-issues-tag-input-suggestion {
+  padding: 4px 8px;
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+}
+
+.obsidian-issues-tag-input-suggestion:hover,
+.obsidian-issues-tag-input-suggestion.is-active {
+  background: var(--background-modifier-hover);
 }
 
 .obsidian-issues-form {
