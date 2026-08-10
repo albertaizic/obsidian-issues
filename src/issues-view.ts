@@ -52,7 +52,6 @@ export class IssuesView extends ItemView {
           newIssueButton.disabled = true;
           try {
             const file = await this.issueService.createIssue(data);
-            await this.refresh();
             await this.app.workspace.getLeaf(false).openFile(file);
             new Notice(`Created ${file.basename}`);
           } catch (error) {
@@ -169,7 +168,6 @@ export class IssuesView extends ItemView {
       onSubmit: async (data) => {
         try {
           await this.issueService.updateIssue(issue.file, data);
-          await this.refresh();
         } catch (error) {
           console.error('Obsidian Issues: failed to update issue', error);
           new Notice('Could not save issue. Check the developer console.');

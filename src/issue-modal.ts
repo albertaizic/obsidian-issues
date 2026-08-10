@@ -61,8 +61,8 @@ export class IssueModal extends Modal {
       );
       for (const status of ISSUE_STATUSES) {
         this.statusDropdown.addOption(
-          status.charAt(0).toUpperCase() + status.slice(1),
           status,
+          status.charAt(0).toUpperCase() + status.slice(1),
         );
       }
       this.statusDropdown.setValue(
@@ -80,8 +80,8 @@ export class IssueModal extends Modal {
     );
     for (const priority of ISSUE_PRIORITIES) {
       this.priorityDropdown.addOption(
-        ISSUE_PRIORITY_LABELS[priority],
         priority,
+        ISSUE_PRIORITY_LABELS[priority],
       );
     }
     this.priorityDropdown.setValue(
