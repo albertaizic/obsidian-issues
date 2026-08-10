@@ -74,13 +74,12 @@ npm run build
 
 The build produces `main.js` in the repository root. Obsidian loads the plugin from `main.js`, `manifest.json`, and `styles.css`.
 
-## Screenshot
+## Screenshots
 
-After the first working run, create `assets/issues-sidebar.png` and add it here:
-
-```md
-![Obsidian Issues sidebar](assets/issues-sidebar.png)
-```
+![Issues sidebar](screenshots/v0.1-issues-tab.png)
+![Sidebar with issue open](screenshots/v0.1-view-issue-open.png)
+![Full view](screenshots/v0.1-full-view.png)
+![Full view with issue open](screenshots/v0.1-full-view-issue-open.png)
 
 ## Roadmap
 
