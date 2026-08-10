@@ -86,6 +86,10 @@
   opacity: 0.6;
 }
 
+.obsidian-issues-row.is-closed .obsidian-issues-delete-button {
+  opacity: 1;
+}
+
 .obsidian-issues-row.is-overdue .obsidian-issues-due {
   color: var(--text-error);
   font-weight: var(--font-semibold);

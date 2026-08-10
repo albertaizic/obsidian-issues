@@ -23,7 +23,7 @@ export class IssueModal extends Modal {
   private titleInput!: TextComponent;
   private statusDropdown: DropdownComponent | null = null;
   private priorityDropdown!: DropdownComponent;
-  private projectInput!: TextComponent;
+  private projectDropdown!: DropdownComponent;
   private tagInput!: TagInput;
   private dueInput!: TextComponent;
 
@@ -96,24 +96,16 @@ export class IssueModal extends Modal {
       'label',
       { text: 'Project', cls: 'obsidian-issues-field-label' },
     );
-    const projectInputContainer = projectRow.createDiv({
-      cls: 'obsidian-issues-field-input',
-    });
-    const projectDatalist = projectInputContainer.createEl('datalist', {
-      cls: 'obsidian-issues-project-datalist',
-    });
-    projectDatalist.id = 'obsidian-issues-project-datalist';
-    for (const project of this.options.knownProjects) {
-      projectDatalist.createEl('option', { value: project });
-    }
-    this.projectInput = new TextComponent(projectInputContainer);
-    this.projectInput.inputEl.setAttribute(
-      'list',
-      'obsidian-issues-project-datalist',
+    this.projectDropdown = new DropdownComponent(
+      projectRow.createDiv({ cls: 'obsidian-issues-field-input' }),
     );
-    this.projectInput
-      .setPlaceholder('Select or type a project')
-      .setValue(this.options.initial.project ?? '');
+    this.projectDropdown.addOption('', 'Select a project');
+    for (const project of this.options.knownProjects) {
+      this.projectDropdown.addOption(project, project);
+    }
+    this.projectDropdown.setValue(
+      this.options.initial.project ?? '',
+    );
 
     const labelsRow = form.createDiv({ cls: 'obsidian-issues-field' });
     labelsRow.createEl(
@@ -138,6 +130,7 @@ export class IssueModal extends Modal {
       dueRow.createDiv({ cls: 'obsidian-issues-field-input' }),
     );
     this.dueInput.inputEl.type = 'date';
+    this.dueInput.inputEl.setAttribute('lang', 'en-GB');
     this.dueInput.setValue(this.options.initial.due ?? '');
 
     this.buildButtons(form);
@@ -180,7 +173,7 @@ export class IssueModal extends Modal {
         ? (this.statusDropdown.getValue() as IssueStatus)
         : (this.options.initial.status ?? 'open'),
       priority: this.priorityDropdown.getValue() as IssuePriority,
-      project: this.projectInput.getValue().trim(),
+      project: this.projectDropdown.getValue().trim(),
       labels: this.tagInput.getValue(),
       due: this.dueInput.getValue(),
       created:
