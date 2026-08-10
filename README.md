@@ -121,6 +121,7 @@ The build produces `main.js` in the repository root. Obsidian loads the plugin f
 ![Full view](screenshots/v0.1-full-view.png)
 ![Full view with issue open](screenshots/v0.1-full-view-issue-open.png)
 
+
 ## Roadmap
 
 - **v0.1** ~ completed — create/read/close issues
