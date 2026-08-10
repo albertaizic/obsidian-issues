@@ -39,6 +39,28 @@ export class IssueService {
     return issues.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
   }
 
+  async getAllLabels(): Promise<string[]> {
+    const issues = await this.listIssues();
+    const labelSet = new Set<string>();
+    for (const issue of issues) {
+      for (const label of issue.labels) {
+        labelSet.add(label);
+      }
+    }
+    return [...labelSet].sort();
+  }
+
+  async getAllProjects(): Promise<string[]> {
+    const issues = await this.listIssues();
+    const projectSet = new Set<string>();
+    for (const issue of issues) {
+      if (issue.project.length > 0) {
+        projectSet.add(issue.project);
+      }
+    }
+    return [...projectSet].sort();
+  }
+
   async toggleIssueStatus(file: TFile): Promise<void> {
     const content = await this.app.vault.cachedRead(file);
     const frontmatter = this.parseFrontmatter(content);
