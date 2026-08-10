@@ -7,6 +7,7 @@ export interface IssueData {
   title: string;
   status: IssueStatus;
   priority: IssuePriority;
+  project: string;
   created: string;
 }
 

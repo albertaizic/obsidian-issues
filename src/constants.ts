@@ -14,5 +14,5 @@ export const ISSUE_PRIORITY_LABELS: Record<IssuePriority, string> = {
   critical: 'Critical',
 };
 export const FRONTMATTER_FIELD_ORDER: readonly string[] = [
-  'id', 'title', 'status', 'priority', 'created',
+  'id', 'title', 'status', 'priority', 'project', 'created',
 ];

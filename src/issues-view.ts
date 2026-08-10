@@ -104,7 +104,9 @@ export class IssuesView extends ItemView {
 
       const meta = row.createDiv({ cls: 'obsidian-issues-meta' });
       meta.createSpan({ text: issue.id });
-      meta.createSpan({ text: issue.status.toUpperCase() });
+      if (issue.project) {
+        meta.createSpan({ text: issue.project });
+      }
 
       const openIssue = (): void => {
         void this.app.workspace.getLeaf(false).openFile(issue.file);

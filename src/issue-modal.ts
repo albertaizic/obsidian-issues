@@ -18,6 +18,7 @@ export interface IssueModalOptions {
 export class IssueModal extends Modal {
   private titleInput!: TextComponent;
   private priorityDropdown!: DropdownComponent;
+  private projectInput!: TextComponent;
 
   constructor(app: App, private options: IssueModalOptions) {
     super(app);
@@ -63,6 +64,18 @@ export class IssueModal extends Modal {
       this.options.initial.priority ?? 'medium',
     );
 
+    const projectRow = form.createDiv({ cls: 'obsidian-issues-field' });
+    projectRow.createEl(
+      'label',
+      { text: 'Project', cls: 'obsidian-issues-field-label' },
+    );
+    this.projectInput = new TextComponent(
+      projectRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+    );
+    this.projectInput
+      .setPlaceholder('Enter project name')
+      .setValue(this.options.initial.project ?? '');
+
     this.buildButtons(form);
   }
 
@@ -101,6 +114,7 @@ export class IssueModal extends Modal {
       title,
       status: this.options.initial.status ?? 'open',
       priority: this.priorityDropdown.getValue() as IssuePriority,
+      project: this.projectInput.getValue().trim(),
       created:
         this.options.initial.created ?? new Date().toISOString().slice(0, 10),
     };
