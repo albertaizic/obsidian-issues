@@ -78,6 +78,19 @@
   outline: none;
 }
 
+.obsidian-issues-row.is-closed .obsidian-issues-title {
+  text-decoration: line-through;
+}
+
+.obsidian-issues-row.is-closed {
+  opacity: 0.6;
+}
+
+.obsidian-issues-row.is-overdue .obsidian-issues-due {
+  color: var(--text-error);
+  font-weight: var(--font-semibold);
+}
+
 .obsidian-issues-row-top {
   display: flex;
   align-items: flex-start;
