@@ -102,6 +102,7 @@ export class IssueService {
   private async readIssue(file: TFile): Promise<Issue> {
     const content = await this.app.vault.cachedRead(file);
     const frontmatter = this.parseFrontmatter(content);
+    const body = this.extractBody(content);
 
     return {
       id: this.toStringValue(frontmatter.id, file.basename),
@@ -115,6 +116,7 @@ export class IssueService {
         frontmatter.created,
         new Date().toISOString().slice(0, 10),
       ),
+      body,
       file,
     };
   }
