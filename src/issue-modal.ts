@@ -96,11 +96,23 @@ export class IssueModal extends Modal {
       'label',
       { text: 'Project', cls: 'obsidian-issues-field-label' },
     );
-    this.projectInput = new TextComponent(
-      projectRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+    const projectInputContainer = projectRow.createDiv({
+      cls: 'obsidian-issues-field-input',
+    });
+    const projectDatalist = projectInputContainer.createEl('datalist', {
+      cls: 'obsidian-issues-project-datalist',
+    });
+    projectDatalist.id = 'obsidian-issues-project-datalist';
+    for (const project of this.options.knownProjects) {
+      projectDatalist.createEl('option', { value: project });
+    }
+    this.projectInput = new TextComponent(projectInputContainer);
+    this.projectInput.inputEl.setAttribute(
+      'list',
+      'obsidian-issues-project-datalist',
     );
     this.projectInput
-      .setPlaceholder('Enter project name')
+      .setPlaceholder('Select or type a project')
       .setValue(this.options.initial.project ?? '');
 
     const labelsRow = form.createDiv({ cls: 'obsidian-issues-field' });
