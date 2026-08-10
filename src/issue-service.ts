@@ -61,6 +61,10 @@ export class IssueService {
     return [...projectSet].sort();
   }
 
+  async deleteIssue(file: TFile): Promise<void> {
+    await this.app.fileManager.trashFile(file);
+  }
+
   async toggleIssueStatus(file: TFile): Promise<void> {
     const content = await this.app.vault.cachedRead(file);
     const frontmatter = this.parseFrontmatter(content);

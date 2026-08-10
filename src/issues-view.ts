@@ -122,6 +122,16 @@ export class IssuesView extends ItemView {
         void this.editIssue(issue);
       });
 
+      const deleteButton = topLine.createEl('button', {
+        cls: 'obsidian-issues-delete-button mod-warning',
+        title: 'Delete issue',
+      });
+      setIcon(deleteButton, 'trash-2');
+      deleteButton.addEventListener('click', (e: MouseEvent) => {
+        e.stopPropagation();
+        void this.deleteIssue(issue);
+      });
+
       const meta = row.createDiv({ cls: 'obsidian-issues-meta' });
       meta.createSpan({ text: issue.id });
       if (issue.project) {
@@ -159,6 +169,16 @@ export class IssuesView extends ItemView {
           openIssue();
         }
       });
+    }
+  }
+
+  private async deleteIssue(issue: Issue): Promise<void> {
+    try {
+      await this.issueService.deleteIssue(issue.file);
+      await this.refresh();
+    } catch (error) {
+      console.error('Obsidian Issues: failed to delete issue', error);
+      new Notice('Could not delete issue. Check the developer console.');
     }
   }
 
