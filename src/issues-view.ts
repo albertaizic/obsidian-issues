@@ -1,5 +1,7 @@
-import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
+import { ItemView, moment, Notice, setIcon, WorkspaceLeaf } from 'obsidian';
 import { VIEW_TYPE_ISSUES } from './constants';
+import { IssueModal } from './issue-modal';
+import type { Issue } from './types';
 import type { IssueService } from './issue-service';
 
 export class IssuesView extends ItemView {
@@ -41,7 +43,26 @@ export class IssuesView extends ItemView {
     });
 
     newIssueButton.addEventListener('click', () => {
-      void this.createIssueAndOpen(newIssueButton);
+      new IssueModal(this.app, {
+        title: 'New issue',
+        initial: {},
+        statusEditable: false,
+        submitLabel: 'Create',
+        onSubmit: async (data) => {
+          newIssueButton.disabled = true;
+          try {
+            const file = await this.issueService.createIssue(data);
+            await this.refresh();
+            await this.app.workspace.getLeaf(false).openFile(file);
+            new Notice(`Created ${file.basename}`);
+          } catch (error) {
+            console.error('Obsidian Issues: failed to create issue', error);
+            new Notice('Could not create issue. Check the developer console.');
+          } finally {
+            newIssueButton.disabled = false;
+          }
+        },
+      }).open();
     });
 
     const issues = await this.issueService.listIssues();
@@ -68,15 +89,52 @@ export class IssuesView extends ItemView {
       row.setAttr('tabindex', '0');
 
       const topLine = row.createDiv({ cls: 'obsidian-issues-row-top' });
-      topLine.createSpan({
+      const statusDot = topLine.createSpan({
         text: issue.status.toLowerCase() === 'closed' ? '○' : '●',
         cls: `obsidian-issues-status-dot is-${issue.status.toLowerCase()}`,
       });
+      statusDot.addEventListener('click', (e: MouseEvent) => {
+        e.stopPropagation();
+        void this.toggleStatus(issue);
+      });
       topLine.createSpan({ text: issue.title, cls: 'obsidian-issues-title' });
+      topLine.createSpan({
+        text: issue.priority.toUpperCase(),
+        cls: `obsidian-issues-priority is-${issue.priority}`,
+      });
+
+      const editButton = topLine.createEl('button', {
+        cls: 'obsidian-issues-edit-button mod-secondary',
+        title: 'Edit issue',
+      });
+      setIcon(editButton, 'pencil');
+      editButton.addEventListener('click', (e: MouseEvent) => {
+        e.stopPropagation();
+        void this.editIssue(issue);
+      });
 
       const meta = row.createDiv({ cls: 'obsidian-issues-meta' });
       meta.createSpan({ text: issue.id });
-      meta.createSpan({ text: issue.status.toUpperCase() });
+      if (issue.project) {
+        meta.createSpan({ text: issue.project });
+      }
+      if (issue.labels.length > 0) {
+        const labelsContainer = meta.createDiv({
+          cls: 'obsidian-issues-labels',
+        });
+        for (const label of issue.labels) {
+          labelsContainer.createSpan({
+            text: label,
+            cls: 'obsidian-issues-label',
+          });
+        }
+      }
+      if (issue.due) {
+        meta.createSpan({
+          text: `Due ${moment(issue.due).format('MMM D')}`,
+          cls: 'obsidian-issues-due',
+        });
+      }
 
       const openIssue = (): void => {
         void this.app.workspace.getLeaf(false).openFile(issue.file);
@@ -92,19 +150,31 @@ export class IssuesView extends ItemView {
     }
   }
 
-  private async createIssueAndOpen(button: HTMLButtonElement): Promise<void> {
-    button.disabled = true;
-
+  private async toggleStatus(issue: Issue): Promise<void> {
     try {
-      const file = await this.issueService.createIssue();
+      await this.issueService.toggleIssueStatus(issue.file);
       await this.refresh();
-      await this.app.workspace.getLeaf(false).openFile(file);
-      new Notice(`Created ${file.basename}`);
     } catch (error) {
-      console.error('Obsidian Issues: failed to create issue', error);
-      new Notice('Could not create issue. Check the developer console.');
-    } finally {
-      button.disabled = false;
+      console.error('Obsidian Issues: failed to toggle status', error);
+      new Notice('Could not update issue. Check the developer console.');
     }
+  }
+
+  private editIssue(issue: Issue): void {
+    new IssueModal(this.app, {
+      title: 'Edit issue',
+      initial: issue,
+      statusEditable: true,
+      submitLabel: 'Save',
+      onSubmit: async (data) => {
+        try {
+          await this.issueService.updateIssue(issue.file, data);
+          await this.refresh();
+        } catch (error) {
+          console.error('Obsidian Issues: failed to update issue', error);
+          new Notice('Could not save issue. Check the developer console.');
+        }
+      },
+    }).open();
   }
 }
