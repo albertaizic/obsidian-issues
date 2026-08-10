@@ -16,4 +16,5 @@ export interface IssueData {
 export interface Issue extends IssueData {
   id: string;
   file: TFile;
+  body: string;
 }

@@ -6,11 +6,14 @@ import {
   TextComponent,
 } from 'obsidian';
 import { ISSUE_PRIORITIES, ISSUE_PRIORITY_LABELS, ISSUE_STATUSES } from './constants';
+import { TagInput } from './tag-input';
 import type { IssueData, IssuePriority, IssueStatus } from './types';
 
 export interface IssueModalOptions {
   title: string;
   initial: Partial<IssueData>;
+  knownLabels: string[];
+  knownProjects: string[];
   statusEditable: boolean;
   submitLabel: string;
   onSubmit: (data: IssueData) => void | Promise<void>;
@@ -21,7 +24,7 @@ export class IssueModal extends Modal {
   private statusDropdown: DropdownComponent | null = null;
   private priorityDropdown!: DropdownComponent;
   private projectInput!: TextComponent;
-  private labelsInput!: TextComponent;
+  private tagInput!: TagInput;
   private dueInput!: TextComponent;
 
   constructor(app: App, private options: IssueModalOptions) {
@@ -93,11 +96,23 @@ export class IssueModal extends Modal {
       'label',
       { text: 'Project', cls: 'obsidian-issues-field-label' },
     );
-    this.projectInput = new TextComponent(
-      projectRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+    const projectInputContainer = projectRow.createDiv({
+      cls: 'obsidian-issues-field-input',
+    });
+    const projectDatalist = projectInputContainer.createEl('datalist', {
+      cls: 'obsidian-issues-project-datalist',
+    });
+    projectDatalist.id = 'obsidian-issues-project-datalist';
+    for (const project of this.options.knownProjects) {
+      projectDatalist.createEl('option', { value: project });
+    }
+    this.projectInput = new TextComponent(projectInputContainer);
+    this.projectInput.inputEl.setAttribute(
+      'list',
+      'obsidian-issues-project-datalist',
     );
     this.projectInput
-      .setPlaceholder('Enter project name')
+      .setPlaceholder('Select or type a project')
       .setValue(this.options.initial.project ?? '');
 
     const labelsRow = form.createDiv({ cls: 'obsidian-issues-field' });
@@ -105,14 +120,14 @@ export class IssueModal extends Modal {
       'label',
       { text: 'Labels', cls: 'obsidian-issues-field-label' },
     );
-    this.labelsInput = new TextComponent(
+    this.tagInput = new TagInput(
       labelsRow.createDiv({ cls: 'obsidian-issues-field-input' }),
+      {
+        value: this.options.initial.labels ?? [],
+        knownLabels: this.options.knownLabels,
+        onChange: () => {},
+      },
     );
-    this.labelsInput
-      .setPlaceholder('Comma-separated (e.g. GitHub, portfolio)')
-      .setValue(
-        this.options.initial.labels?.join(', ') ?? '',
-      );
 
     const dueRow = form.createDiv({ cls: 'obsidian-issues-field' });
     dueRow.createEl(
@@ -166,11 +181,7 @@ export class IssueModal extends Modal {
         : (this.options.initial.status ?? 'open'),
       priority: this.priorityDropdown.getValue() as IssuePriority,
       project: this.projectInput.getValue().trim(),
-      labels: this.labelsInput
-        .getValue()
-        .split(',')
-        .map((s) => s.trim())
-        .filter((s) => s.length > 0),
+      labels: this.tagInput.getValue(),
       due: this.dueInput.getValue(),
       created:
         this.options.initial.created ?? new Date().toISOString().slice(0, 10),
