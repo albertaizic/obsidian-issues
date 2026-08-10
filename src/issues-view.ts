@@ -309,7 +309,7 @@ export class IssuesView extends ItemView {
     }
     if (issue.due) {
       meta.createSpan({
-        text: `Due ${moment(issue.due).format('MMM D')}`,
+        text: `Due ${moment(issue.due).format('DD/MM/YYYY')}`,
         cls: 'obsidian-issues-due',
       });
     }
