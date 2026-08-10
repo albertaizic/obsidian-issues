@@ -27,6 +27,39 @@
   margin-bottom: var(--size-4-3);
 }
 
+.obsidian-issues-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-2);
+  margin-bottom: var(--size-4-3);
+  padding-bottom: var(--size-4-2);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-toolbar .obsidian-issues-label-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  align-items: center;
+}
+
+.obsidian-issues-label-filter {
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  white-space: nowrap;
+  opacity: 0.6;
+}
+
+.obsidian-issues-label-filter.is-active {
+  opacity: 1;
+  border-color: var(--interactive-accent);
+}
+
 .obsidian-issues-list {
   display: flex;
   flex-direction: column;
