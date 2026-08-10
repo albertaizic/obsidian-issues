@@ -1,0 +1,110 @@
+import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
+import { VIEW_TYPE_ISSUES } from './constants';
+import type { IssueService } from './issue-service';
+
+export class IssuesView extends ItemView {
+  constructor(
+    leaf: WorkspaceLeaf,
+    private readonly issueService: IssueService,
+  ) {
+    super(leaf);
+    this.navigation = false;
+  }
+
+  getViewType(): string {
+    return VIEW_TYPE_ISSUES;
+  }
+
+  getDisplayText(): string {
+    return 'Issues';
+  }
+
+  getIcon(): string {
+    return 'circle-dot';
+  }
+
+  protected async onOpen(): Promise<void> {
+    await this.refresh();
+  }
+
+  async refresh(): Promise<void> {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.addClass('obsidian-issues-view');
+
+    const header = contentEl.createDiv({ cls: 'obsidian-issues-header' });
+    header.createEl('h2', { text: 'Issues' });
+
+    const newIssueButton = header.createEl('button', {
+      text: '+ New Issue',
+      cls: 'mod-cta obsidian-issues-new-button',
+    });
+
+    newIssueButton.addEventListener('click', () => {
+      void this.createIssueAndOpen(newIssueButton);
+    });
+
+    const issues = await this.issueService.listIssues();
+    const openCount = issues.filter((issue) => issue.status.toLowerCase() === 'open').length;
+    const closedCount = issues.filter((issue) => issue.status.toLowerCase() === 'closed').length;
+
+    const summary = contentEl.createDiv({ cls: 'obsidian-issues-summary' });
+    summary.createSpan({ text: `OPEN ${openCount}` });
+    summary.createSpan({ text: `CLOSED ${closedCount}` });
+
+    const list = contentEl.createDiv({ cls: 'obsidian-issues-list' });
+
+    if (issues.length === 0) {
+      list.createDiv({
+        text: 'No issues yet. Create your first one.',
+        cls: 'obsidian-issues-empty',
+      });
+      return;
+    }
+
+    for (const issue of issues) {
+      const row = list.createDiv({ cls: 'obsidian-issues-row' });
+      row.setAttr('role', 'button');
+      row.setAttr('tabindex', '0');
+
+      const topLine = row.createDiv({ cls: 'obsidian-issues-row-top' });
+      topLine.createSpan({
+        text: issue.status.toLowerCase() === 'closed' ? '○' : '●',
+        cls: `obsidian-issues-status-dot is-${issue.status.toLowerCase()}`,
+      });
+      topLine.createSpan({ text: issue.title, cls: 'obsidian-issues-title' });
+
+      const meta = row.createDiv({ cls: 'obsidian-issues-meta' });
+      meta.createSpan({ text: issue.id });
+      meta.createSpan({ text: issue.status.toUpperCase() });
+
+      const openIssue = (): void => {
+        void this.app.workspace.getLeaf(false).openFile(issue.file);
+      };
+
+      row.addEventListener('click', openIssue);
+      row.addEventListener('keydown', (event: KeyboardEvent) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openIssue();
+        }
+      });
+    }
+  }
+
+  private async createIssueAndOpen(button: HTMLButtonElement): Promise<void> {
+    button.disabled = true;
+
+    try {
+      const file = await this.issueService.createIssue();
+      await this.refresh();
+      await this.app.workspace.getLeaf(false).openFile(file);
+      new Notice(`Created ${file.basename}`);
+    } catch (error) {
+      console.error('Obsidian Issues: failed to create issue', error);
+      new Notice('Could not create issue. Check the developer console.');
+    } finally {
+      button.disabled = false;
+    }
+  }
+}
