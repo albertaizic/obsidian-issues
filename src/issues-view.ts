@@ -36,7 +36,7 @@ export class IssuesView extends ItemView {
     header.createEl('h2', { text: 'Issues' });
 
     const newIssueButton = header.createEl('button', {
-      text: '+ New Issue',
+      text: '+ new issue',
       cls: 'mod-cta obsidian-issues-new-button',
     });
 
