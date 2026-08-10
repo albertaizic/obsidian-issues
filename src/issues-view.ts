@@ -1,5 +1,6 @@
 import { ItemView, Notice, WorkspaceLeaf } from 'obsidian';
 import { VIEW_TYPE_ISSUES } from './constants';
+import type { Issue } from './types';
 import type { IssueService } from './issue-service';
 
 export class IssuesView extends ItemView {
@@ -68,9 +69,13 @@ export class IssuesView extends ItemView {
       row.setAttr('tabindex', '0');
 
       const topLine = row.createDiv({ cls: 'obsidian-issues-row-top' });
-      topLine.createSpan({
+      const statusDot = topLine.createSpan({
         text: issue.status.toLowerCase() === 'closed' ? '○' : '●',
         cls: `obsidian-issues-status-dot is-${issue.status.toLowerCase()}`,
+      });
+      statusDot.addEventListener('click', (e: MouseEvent) => {
+        e.stopPropagation();
+        void this.toggleStatus(issue);
       });
       topLine.createSpan({ text: issue.title, cls: 'obsidian-issues-title' });
 
@@ -89,6 +94,16 @@ export class IssuesView extends ItemView {
           openIssue();
         }
       });
+    }
+  }
+
+  private async toggleStatus(issue: Issue): Promise<void> {
+    try {
+      await this.issueService.toggleIssueStatus(issue.file);
+      await this.refresh();
+    } catch (error) {
+      console.error('Obsidian Issues: failed to toggle status', error);
+      new Notice('Could not update issue. Check the developer console.');
     }
   }
 

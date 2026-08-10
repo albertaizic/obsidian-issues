@@ -54,6 +54,11 @@
 .obsidian-issues-status-dot {
   color: var(--interactive-accent);
   line-height: 1.4;
+  cursor: pointer;
+}
+
+.obsidian-issues-status-dot:hover {
+  opacity: 0.7;
 }
 
 .obsidian-issues-status-dot.is-closed {
