@@ -1,7 +1,7 @@
 {
   "id": "obsidian-issues",
   "name": "Obsidian Issues",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.7.2",
   "description": "GitHub Issues-inspired issue tracking inside Obsidian, stored as Markdown.",
   "author": "Andres Albert Aizic",
