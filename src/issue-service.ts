@@ -47,7 +47,7 @@ export class IssueService {
     await this.updateIssue(file, { status: nextStatus });
   }
 
-  async updateIssue(file: TFile, changes: Record<string, unknown>): Promise<void> {
+  async updateIssue(file: TFile, changes: Partial<IssueData>): Promise<void> {
     const content = await this.app.vault.cachedRead(file);
     const frontmatter = this.parseFrontmatter(content);
     const body = this.extractBody(content);
