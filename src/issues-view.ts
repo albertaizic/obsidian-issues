@@ -44,25 +44,34 @@ export class IssuesView extends ItemView {
     });
 
     newIssueButton.addEventListener('click', () => {
-      new IssueModal(this.app, {
-        title: 'New issue',
-        initial: {},
-        statusEditable: false,
-        submitLabel: 'Create',
-        onSubmit: async (data) => {
-          newIssueButton.disabled = true;
-          try {
-            const file = await this.issueService.createIssue(data);
-            await this.app.workspace.getLeaf(false).openFile(file);
-            new Notice(`Created ${file.basename}`);
-          } catch (error) {
-            console.error('Obsidian Issues: failed to create issue', error);
-            new Notice('Could not create issue. Check the developer console.');
-          } finally {
-            newIssueButton.disabled = false;
-          }
-        },
-      }).open();
+      void (async () => {
+        const [knownLabels, knownProjects] = await Promise.all([
+          this.issueService.getAllLabels(),
+          this.issueService.getAllProjects(),
+        ]);
+
+        new IssueModal(this.app, {
+          title: 'New issue',
+          initial: {},
+          knownLabels,
+          knownProjects,
+          statusEditable: false,
+          submitLabel: 'Create',
+          onSubmit: async (data) => {
+            newIssueButton.disabled = true;
+            try {
+              const file = await this.issueService.createIssue(data);
+              await this.app.workspace.getLeaf(false).openFile(file);
+              new Notice(`Created ${file.basename}`);
+            } catch (error) {
+              console.error('Obsidian Issues: failed to create issue', error);
+              new Notice('Could not create issue. Check the developer console.');
+            } finally {
+              newIssueButton.disabled = false;
+            }
+          },
+        }).open();
+      })();
     });
 
     const issues = await this.issueService.listIssues();
@@ -163,10 +172,17 @@ export class IssuesView extends ItemView {
     }
   }
 
-  private editIssue(issue: Issue): void {
+  private async editIssue(issue: Issue): Promise<void> {
+    const [knownLabels, knownProjects] = await Promise.all([
+      this.issueService.getAllLabels(),
+      this.issueService.getAllProjects(),
+    ]);
+
     new IssueModal(this.app, {
       title: 'Edit issue',
       initial: issue,
+      knownLabels,
+      knownProjects,
       statusEditable: true,
       submitLabel: 'Save',
       onSubmit: async (data) => {
