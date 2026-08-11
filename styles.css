@@ -115,9 +115,14 @@
   color: var(--text-muted);
 }
 
+.obsidian-issues-row-buttons {
+  margin-left: auto;
+  display: flex;
+  gap: 0;
+}
+
 .obsidian-issues-edit-button,
 .obsidian-issues-delete-button {
-  margin-left: auto;
   padding: 0 var(--size-4-1);
   display: flex;
   align-items: center;
