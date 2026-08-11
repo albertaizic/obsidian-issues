@@ -61,6 +61,26 @@ Describe the issue here.
 
 Old v0.1 issues display and edit without errors — missing fields fall back to their defaults.
 
+## Milestone: v0.3 — search, filters & sorting
+
+Adds tools for managing larger collections of issues through search, filtering and sorting.
+
+- **Issue search** — live text search across titles and labels
+- **Open / Closed / All filters** — toggle the visible issue set
+- **Project filtering** — project dropdown selection
+- **Priority filtering** — filter by one or more priority levels
+- **Label filtering** — filter by selected labels
+- **Due-date filtering** — filter by overdue, due this week, etc.
+- **Sort by** — priority, creation date, and due date (ascending or descending)
+- **Overdue indicators** — issues past their due date are flagged
+- **Open and closed issue counters** — live counts in the sidebar header
+- **Delete issue button** — remove an issue from the edit modal
+- **GitHub-style label tags** — color-coded label pills with a configurable palette
+
+Date format updated to day/month/year (e.g. `10/08/2026`).
+
+![Issues sidebar with search and filters](screenshots/v0.3-issue-sidebar.png)
+
 ## Development setup
 
 Use a separate development vault. A convenient layout is:
@@ -109,6 +129,11 @@ The build produces `main.js` in the repository root. Obsidian loads the plugin f
 
 ## Screenshots
 
+### v0.3
+
+![Issues sidebar with search and filters](screenshots/v0.3-issue-sidebar.png)
+![Edit issue modal](screenshots/v0.3-edit-issue.png)
+
 ### v0.2
 
 ![Issues sidebar with metadata](screenshots/v0.2-issues-sidebar.png)
@@ -125,6 +150,6 @@ The build produces `main.js` in the repository root. Obsidian loads the plugin f
 
 - **v0.1** ~ completed — create/read/close issues
 - **v0.2** ~completed — labels, priority, projects, due dates, edit modal
-- **v0.3** — filters, search
+- **v0.3** ~completed — filters, search
 - **v0.4** — Kanban/dashboard
 - **v1.0** — polished release, tests, documentation, demo GIF, GitHub release
