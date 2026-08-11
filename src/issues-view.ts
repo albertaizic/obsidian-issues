@@ -11,6 +11,7 @@ import {
   ISSUE_PRIORITIES,
   ISSUE_PRIORITY_LABELS,
   ISSUE_STATUSES,
+  ISSUE_STATUS_LABELS,
   VIEW_TYPE_ISSUES,
 } from './constants';
 import { IssueModal } from './issue-modal';
@@ -31,6 +32,8 @@ interface FilterState {
 export class IssuesView extends ItemView {
   private issues: Issue[] = [];
   private listEl: HTMLElement | null = null;
+  private contentWrapper: HTMLElement | null = null;
+  private viewMode: 'list' | 'kanban' = 'list';
   private filters: FilterState = {
     search: '',
     status: 'all',
@@ -47,6 +50,10 @@ export class IssuesView extends ItemView {
   ) {
     super(leaf);
     this.navigation = false;
+    const saved = sessionStorage.getItem('obsidian-issues-view-mode');
+    if (saved === 'list' || saved === 'kanban') {
+      this.viewMode = saved;
+    }
   }
 
   getViewType(): string {
@@ -72,6 +79,7 @@ export class IssuesView extends ItemView {
 
     const header = contentEl.createDiv({ cls: 'obsidian-issues-header' });
     header.createEl('h2', { text: 'Issues' });
+    this.renderViewToggle(header);
 
     const newIssueButton = header.createEl('button', {
       text: '+ new issue',
@@ -111,22 +119,43 @@ export class IssuesView extends ItemView {
 
     this.issues = await this.issueService.listIssues();
 
-    const openCount = this.issues.filter(
-      (issue) => issue.status.toLowerCase() === 'open',
-    ).length;
-    const closedCount = this.issues.filter(
-      (issue) => issue.status.toLowerCase() === 'closed',
-    ).length;
-
     const summary = contentEl.createDiv({ cls: 'obsidian-issues-summary' });
-    summary.createSpan({ text: `OPEN ${openCount}` });
-    summary.createSpan({ text: `CLOSED ${closedCount}` });
+    for (const status of ISSUE_STATUSES) {
+      const count = this.issues.filter((i) => i.status === status).length;
+      summary.createSpan({ text: `${ISSUE_STATUS_LABELS[status].toUpperCase()} ${count}` });
+    }
 
     const toolbar = contentEl.createDiv({ cls: 'obsidian-issues-toolbar' });
     this.renderToolbar(toolbar, this.issues);
 
-    this.listEl = contentEl.createDiv({ cls: 'obsidian-issues-list' });
-    this.renderList();
+    this.contentWrapper = contentEl.createDiv({
+      cls: 'obsidian-issues-content',
+    });
+    this.renderContent();
+  }
+
+  private renderViewToggle(header: HTMLElement): void {
+    const toggle = header.createDiv({ cls: 'obsidian-issues-view-toggle' });
+    const listBtn = toggle.createEl('button', {
+      text: 'List',
+      cls: `mod-plaintext obsidian-issues-view-toggle-button${this.viewMode === 'list' ? ' is-active' : ''}`,
+    });
+    const kanbanBtn = toggle.createEl('button', {
+      text: 'Kanban',
+      cls: `mod-plaintext obsidian-issues-view-toggle-button${this.viewMode === 'kanban' ? ' is-active' : ''}`,
+    });
+    listBtn.addEventListener('click', () => {
+      void this.setViewMode('list');
+    });
+    kanbanBtn.addEventListener('click', () => {
+      void this.setViewMode('kanban');
+    });
+  }
+
+  private async setViewMode(mode: 'list' | 'kanban'): Promise<void> {
+    this.viewMode = mode;
+    sessionStorage.setItem('obsidian-issues-view-mode', mode);
+    this.renderContent();
   }
 
   private renderToolbar(container: HTMLElement, issues: Issue[]): void {
@@ -135,18 +164,18 @@ export class IssuesView extends ItemView {
       .setValue(this.filters.search)
       .onChange((value) => {
         this.filters.search = value;
-        this.renderList();
+        this.renderContent();
       });
 
     const statusDropdown = new DropdownComponent(container);
     statusDropdown.addOption('all', 'All');
     for (const status of ISSUE_STATUSES) {
-      statusDropdown.addOption(status, status.charAt(0).toUpperCase() + status.slice(1));
+      statusDropdown.addOption(status, ISSUE_STATUS_LABELS[status]);
     }
     statusDropdown.setValue(this.filters.status);
     statusDropdown.onChange((value) => {
       this.filters.status = value as 'all' | IssueStatus;
-      this.renderList();
+      this.renderContent();
     });
 
     const projectDropdown = new DropdownComponent(container);
@@ -160,7 +189,7 @@ export class IssuesView extends ItemView {
     projectDropdown.setValue(this.filters.project);
     projectDropdown.onChange((value) => {
       this.filters.project = value;
-      this.renderList();
+      this.renderContent();
     });
 
     const priorityDropdown = new DropdownComponent(container);
@@ -171,7 +200,7 @@ export class IssuesView extends ItemView {
     priorityDropdown.setValue(this.filters.priority);
     priorityDropdown.onChange((value) => {
       this.filters.priority = value as 'all' | IssuePriority;
-      this.renderList();
+      this.renderContent();
     });
 
     const labelSet = new Set<string>();
@@ -200,7 +229,7 @@ export class IssuesView extends ItemView {
           } else {
             this.filters.labels = [...this.filters.labels, label];
           }
-          this.renderList();
+          this.renderContent();
         });
       }
     }
@@ -218,13 +247,24 @@ export class IssuesView extends ItemView {
       const [sortBy, sortDir] = value.split('-') as ['created' | 'due' | 'priority', 'asc' | 'desc'];
       this.filters.sortBy = sortBy;
       this.filters.sortDir = sortDir;
-      this.renderList();
+      this.renderContent();
     });
+  }
+
+  private renderContent(): void {
+    if (!this.contentWrapper) return;
+    this.contentWrapper.empty();
+
+    if (this.viewMode === 'list') {
+      this.listEl = this.contentWrapper.createDiv({ cls: 'obsidian-issues-list' });
+      this.renderList();
+    } else {
+      this.renderKanban();
+    }
   }
 
   private renderList(): void {
     if (!this.listEl) return;
-    this.listEl.empty();
 
     const filtered = this.applyFilters(this.issues);
     const sorted = this.applySort(filtered);
@@ -240,6 +280,108 @@ export class IssuesView extends ItemView {
     for (const issue of sorted) {
       this.renderIssueRow(issue);
     }
+  }
+
+  private renderKanban(): void {
+    if (!this.contentWrapper) return;
+
+    const filtered = this.applyFilters(this.issues);
+    const sorted = this.applySort(filtered);
+
+    const hasIssues = sorted.length > 0;
+    if (!hasIssues) {
+      this.contentWrapper.createDiv({
+        text: 'No issues match your filters.',
+        cls: 'obsidian-issues-empty',
+      });
+      return;
+    }
+
+    for (const status of ISSUE_STATUSES) {
+      const columnIssues = sorted.filter((i) => i.status === status);
+      this.renderKanbanColumn(status, columnIssues);
+    }
+  }
+
+  private renderKanbanColumn(
+    status: IssueStatus,
+    issues: Issue[],
+  ): void {
+    if (!this.contentWrapper) return;
+
+    const column = this.contentWrapper.createDiv({
+      cls: 'obsidian-issues-kanban-column',
+    });
+    column.dataset.status = status;
+
+    const header = column.createDiv({
+      cls: 'obsidian-issues-kanban-column-header',
+    });
+    header.createSpan({ text: ISSUE_STATUS_LABELS[status] });
+    header.createSpan({
+      text: String(issues.length),
+      cls: 'obsidian-issues-kanban-column-count',
+    });
+
+    const body = column.createDiv({
+      cls: 'obsidian-issues-kanban-column-body',
+    });
+
+    for (const issue of issues) {
+      this.renderKanbanCard(issue, body);
+    }
+
+    column.addEventListener('dragover', (e: DragEvent) => {
+      e.preventDefault();
+      column.addClass('is-drag-over');
+    });
+    column.addEventListener('dragleave', () => {
+      column.removeClass('is-drag-over');
+    });
+    column.addEventListener('drop', (e: DragEvent) => {
+      e.preventDefault();
+      column.removeClass('is-drag-over');
+      const issueId = e.dataTransfer?.getData('text/plain');
+      if (!issueId) return;
+      const issue = this.issues.find((i) => i.id === issueId);
+      if (!issue || issue.status === status) return;
+      void this.updateIssueStatus(issue, status);
+    });
+  }
+
+  private renderKanbanCard(issue: Issue, container: HTMLElement): void {
+    const card = container.createDiv({
+      cls: 'obsidian-issues-kanban-card',
+    });
+    card.dataset.issueId = issue.id;
+    card.setAttr('draggable', 'true');
+
+    card.createSpan({ text: issue.id, cls: 'obsidian-issues-kanban-card-id' });
+    card.createSpan({ text: issue.title, cls: 'obsidian-issues-kanban-card-title' });
+
+    const meta = card.createDiv({ cls: 'obsidian-issues-kanban-card-meta' });
+    meta.createSpan({
+      text: issue.priority.toUpperCase(),
+      cls: `obsidian-issues-priority is-${issue.priority}`,
+    });
+    if (issue.due) {
+      const dueDate = parseDueDate(issue.due);
+      meta.createSpan({
+        text: `Due ${dueDate.format('DD/MM/YYYY')}`,
+        cls: 'obsidian-issues-due',
+      });
+    }
+
+    card.addEventListener('dragstart', (e: DragEvent) => {
+      e.dataTransfer?.setData('text/plain', issue.id);
+      card.addClass('is-dragging');
+    });
+    card.addEventListener('dragend', () => {
+      card.removeClass('is-dragging');
+    });
+    card.addEventListener('click', () => {
+      void this.app.workspace.getLeaf(false).openFile(issue.file);
+    });
   }
 
   private renderIssueRow(issue: Issue): void {
@@ -259,7 +401,7 @@ export class IssuesView extends ItemView {
     const topLine = row.createDiv({ cls: 'obsidian-issues-row-top' });
     const statusDot = topLine.createSpan({
       text: issue.status.toLowerCase() === 'closed' ? '○' : '●',
-      cls: `obsidian-issues-status-dot is-${issue.status.toLowerCase()}`,
+      cls: `obsidian-issues-status-dot is-${issue.status === 'in-progress' ? 'in-progress' : issue.status}`,
     });
     statusDot.addEventListener('click', (e: MouseEvent) => {
       e.stopPropagation();
@@ -400,6 +542,19 @@ export class IssuesView extends ItemView {
       await this.refresh();
     } catch (error) {
       console.error('Obsidian Issues: failed to toggle status', error);
+      new Notice('Could not update issue. Check the developer console.');
+    }
+  }
+
+  private async updateIssueStatus(
+    issue: Issue,
+    status: IssueStatus,
+  ): Promise<void> {
+    try {
+      await this.issueService.updateIssue(issue.file, { status });
+      await this.refresh();
+    } catch (error) {
+      console.error('Obsidian Issues: failed to update issue status', error);
       new Notice('Could not update issue. Check the developer console.');
     }
   }

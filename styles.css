@@ -278,3 +278,112 @@
   gap: var(--size-4-2);
   justify-content: flex-end;
 }
+
+.obsidian-issues-view-toggle {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  margin-right: var(--size-4-2);
+}
+
+.obsidian-issues-view-toggle-button {
+  padding: 4px 12px;
+  font-size: var(--font-ui-smaller);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-right: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-view-toggle-button:last-child {
+  border-right: none;
+}
+
+.obsidian-issues-view-toggle-button.is-active {
+  background: var(--background-modifier-selected);
+  color: var(--text-normal);
+}
+
+.obsidian-issues-kanban {
+  display: flex;
+  gap: var(--size-4-2);
+  overflow-x: auto;
+  padding-bottom: var(--size-4-2);
+}
+
+.obsidian-issues-kanban-column {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 300px;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+}
+
+.obsidian-issues-kanban-column.is-drag-over {
+  background: var(--background-modifier-hover);
+}
+
+.obsidian-issues-kanban-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-kanban-column-count {
+  background: var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.obsidian-issues-kanban-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+  padding: var(--size-4-2);
+  overflow-y: auto;
+}
+
+.obsidian-issues-kanban-card {
+  background: var(--background-primary);
+  border-radius: var(--radius-s);
+  padding: var(--size-4-2);
+  cursor: grab;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-kanban-card:is-dragging {
+  opacity: 0.5;
+}
+
+.obsidian-issues-kanban-card:hover {
+  border-color: var(--interactive-accent);
+}
+
+.obsidian-issues-kanban-card-id {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.obsidian-issues-kanban-card-title {
+  font-weight: var(--font-medium);
+  margin: 4px 0;
+  overflow-wrap: anywhere;
+}
+
+.obsidian-issues-kanban-card-meta {
+  display: flex;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+}

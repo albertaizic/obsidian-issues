@@ -3,7 +3,14 @@ import type { IssuePriority, IssueStatus } from './types';
 export const VIEW_TYPE_ISSUES = 'obsidian-issues-view';
 export const ISSUES_FOLDER = 'Issues';
 export const ISSUE_FILENAME_PATTERN = /^ISSUE-(\d+)$/;
-export const ISSUE_STATUSES: readonly IssueStatus[] = ['open', 'closed'];
+export const ISSUE_STATUSES: readonly IssueStatus[] = [
+  'open', 'in-progress', 'closed',
+];
+export const ISSUE_STATUS_LABELS: Record<IssueStatus, string> = {
+  open: 'Open',
+  'in-progress': 'In Progress',
+  closed: 'Closed',
+};
 export const ISSUE_PRIORITIES: readonly IssuePriority[] = [
   'low', 'medium', 'high', 'critical',
 ];

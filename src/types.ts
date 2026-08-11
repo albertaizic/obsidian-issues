@@ -1,6 +1,6 @@
 import type { TFile } from 'obsidian';
 
-export type IssueStatus = 'open' | 'closed';
+export type IssueStatus = 'open' | 'in-progress' | 'closed';
 export type IssuePriority = 'low' | 'medium' | 'high' | 'critical';
 
 export interface IssueData {
