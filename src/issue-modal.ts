@@ -9,6 +9,20 @@ import { ISSUE_PRIORITIES, ISSUE_PRIORITY_LABELS, ISSUE_STATUSES } from './const
 import { TagInput } from './tag-input';
 import type { IssueData, IssuePriority, IssueStatus } from './types';
 
+function toEuropeanDate(value: string): string {
+  if (!value) return '';
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
+  return value;
+}
+
+function toInputDate(value: string): string {
+  if (!value) return '';
+  const euMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (euMatch) return `${euMatch[3]}-${euMatch[2]}-${euMatch[1]}`;
+  return value;
+}
+
 export interface IssueModalOptions {
   title: string;
   initial: Partial<IssueData>;
@@ -131,7 +145,7 @@ export class IssueModal extends Modal {
     );
     this.dueInput.inputEl.type = 'date';
     this.dueInput.inputEl.setAttribute('lang', 'en-GB');
-    this.dueInput.setValue(this.options.initial.due ?? '');
+    this.dueInput.setValue(toInputDate(this.options.initial.due ?? ''));
 
     this.buildButtons(form);
   }
@@ -175,7 +189,7 @@ export class IssueModal extends Modal {
       priority: this.priorityDropdown.getValue() as IssuePriority,
       project: this.projectDropdown.getValue().trim(),
       labels: this.tagInput.getValue(),
-      due: this.dueInput.getValue(),
+      due: toEuropeanDate(this.dueInput.getValue()),
       created:
         this.options.initial.created ?? new Date().toISOString().slice(0, 10),
     };

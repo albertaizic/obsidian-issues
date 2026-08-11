@@ -247,8 +247,11 @@ export class IssuesView extends ItemView {
     if (issue.status.toLowerCase() === 'closed') {
       row.addClass('is-closed');
     }
-    if (issue.due && issue.due < new Date().toISOString().slice(0, 10)) {
-      row.addClass('is-overdue');
+    if (issue.due) {
+      const dueDate = parseDueDate(issue.due);
+      if (dueDate.isValid() && dueDate.isBefore(moment(), 'day')) {
+        row.addClass('is-overdue');
+      }
     }
     row.setAttr('role', 'button');
     row.setAttr('tabindex', '0');
@@ -268,7 +271,11 @@ export class IssuesView extends ItemView {
       cls: `obsidian-issues-priority is-${issue.priority}`,
     });
 
-    const editButton = topLine.createEl('button', {
+    const buttonGroup = topLine.createDiv({
+      cls: 'obsidian-issues-row-buttons',
+    });
+
+    const editButton = buttonGroup.createEl('button', {
       cls: 'obsidian-issues-edit-button mod-secondary',
       title: 'Edit issue',
     });
@@ -278,7 +285,7 @@ export class IssuesView extends ItemView {
       void this.editIssue(issue);
     });
 
-    const deleteButton = topLine.createEl('button', {
+    const deleteButton = buttonGroup.createEl('button', {
       cls: 'obsidian-issues-delete-button mod-warning',
       title: 'Delete issue',
     });
@@ -309,7 +316,7 @@ export class IssuesView extends ItemView {
     }
     if (issue.due) {
       meta.createSpan({
-        text: `Due ${moment(issue.due).format('DD/MM/YYYY')}`,
+        text: `Due ${parseDueDate(issue.due).format('DD/MM/YYYY')}`,
         cls: 'obsidian-issues-due',
       });
     }
@@ -422,6 +429,18 @@ export class IssuesView extends ItemView {
   }
 }
 
+function parseDueDate(value: string): moment.Moment {
+  const parsed = moment(value, 'DD/MM/YYYY', true);
+  if (parsed.isValid()) return parsed;
+  return moment(value, 'YYYY-MM-DD', true);
+}
+
+function normalizeDate(value: string): string {
+  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (match) return `${match[3]}-${match[2]}-${match[1]}`;
+  return value;
+}
+
 function issueField(issue: Issue, field: 'created' | 'due'): string {
-  return field === 'created' ? issue.created : issue.due;
+  return field === 'created' ? issue.created : normalizeDate(issue.due);
 }
