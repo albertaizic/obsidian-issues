@@ -19,7 +19,9 @@ function toEuropeanDate(value: string): string {
 function toInputDate(value: string): string {
   if (!value) return '';
   const euMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (euMatch) return `${euMatch[3]}-${euMatch[2]}-${euMatch[1]}`;
+  if (euMatch) return value;
+  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
   return value;
 }
 
@@ -143,8 +145,9 @@ export class IssueModal extends Modal {
     this.dueInput = new TextComponent(
       dueRow.createDiv({ cls: 'obsidian-issues-field-input' }),
     );
-    this.dueInput.inputEl.type = 'date';
-    this.dueInput.inputEl.setAttribute('lang', 'en-GB');
+    this.dueInput.inputEl.type = 'text';
+    const dateFormatHint = 'dd/mm/yyyy';
+    this.dueInput.inputEl.setAttribute('placeholder', dateFormatHint);
     this.dueInput.setValue(toInputDate(this.options.initial.due ?? ''));
 
     this.buildButtons(form);

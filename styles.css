@@ -118,7 +118,7 @@
 .obsidian-issues-row-buttons {
   margin-left: auto;
   display: flex;
-  gap: 0;
+  gap: var(--size-4-2);
 }
 
 .obsidian-issues-edit-button,
