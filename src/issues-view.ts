@@ -44,6 +44,12 @@ export class IssuesView extends ItemView {
     sortDir: 'desc',
   };
 
+  private labelDropdownOpen = false;
+  private labelDropdownBtn: HTMLElement | null = null;
+  private labelDropdownPanel: HTMLElement | null = null;
+  private listToggleButton: HTMLElement | null = null;
+  private kanbanToggleButton: HTMLElement | null = null;
+
   constructor(
     leaf: WorkspaceLeaf,
     private readonly issueService: IssueService,
@@ -73,6 +79,8 @@ export class IssuesView extends ItemView {
   }
 
   async refresh(): Promise<void> {
+    document.removeEventListener('click', this.handleDocumentClick);
+    this.labelDropdownOpen = false;
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('obsidian-issues-view');
@@ -132,7 +140,23 @@ export class IssuesView extends ItemView {
       cls: 'obsidian-issues-content',
     });
     this.renderContent();
+
+    document.addEventListener('click', this.handleDocumentClick);
   }
+
+  private handleDocumentClick = (e: MouseEvent): void => {
+    if (
+      this.labelDropdownOpen &&
+      this.labelDropdownPanel &&
+      this.labelDropdownBtn &&
+      e.target instanceof Node &&
+      !this.labelDropdownBtn.contains(e.target) &&
+      !this.labelDropdownPanel.contains(e.target)
+    ) {
+      this.labelDropdownOpen = false;
+      this.labelDropdownPanel.addClass('is-hidden');
+    }
+  };
 
   private renderViewToggle(header: HTMLElement): void {
     const toggle = header.createDiv({ cls: 'obsidian-issues-view-toggle' });
@@ -144,6 +168,8 @@ export class IssuesView extends ItemView {
       text: 'Kanban',
       cls: `mod-plaintext obsidian-issues-view-toggle-button${this.viewMode === 'kanban' ? ' is-active' : ''}`,
     });
+    this.listToggleButton = listBtn;
+    this.kanbanToggleButton = kanbanBtn;
     listBtn.addEventListener('click', () => {
       void this.setViewMode('list');
     });
@@ -152,9 +178,15 @@ export class IssuesView extends ItemView {
     });
   }
 
+  private updateViewToggle(): void {
+    this.listToggleButton?.toggleClass('is-active', this.viewMode === 'list');
+    this.kanbanToggleButton?.toggleClass('is-active', this.viewMode === 'kanban');
+  }
+
   private async setViewMode(mode: 'list' | 'kanban'): Promise<void> {
     this.viewMode = mode;
     sessionStorage.setItem('obsidian-issues-view-mode', mode);
+    this.updateViewToggle();
     this.renderContent();
   }
 
@@ -211,24 +243,46 @@ export class IssuesView extends ItemView {
     }
     const knownLabels = [...labelSet].sort();
     if (knownLabels.length > 0) {
-      const labelsContainer = container.createDiv({
-        cls: 'obsidian-issues-label-filters',
+      const dropdownWrapper = container.createDiv({
+        cls: 'obsidian-issues-label-dropdown-wrapper',
       });
+      const dropdownBtn = dropdownWrapper.createEl('button', {
+        text: this.filters.labels.length > 0
+          ? `Labels (${this.filters.labels.length})`
+          : 'Labels',
+        cls: 'obsidian-issues-label-dropdown mod-plaintext',
+        type: 'button',
+      });
+      this.labelDropdownBtn = dropdownBtn;
+
+      const dropdownPanel = dropdownWrapper.createDiv({
+        cls: 'obsidian-issues-label-dropdown-panel is-hidden',
+      });
+      this.labelDropdownPanel = dropdownPanel;
+
+      dropdownBtn.addEventListener('click', () => {
+        this.labelDropdownOpen = !this.labelDropdownOpen;
+        dropdownPanel.toggleClass('is-hidden', !this.labelDropdownOpen);
+      });
+
       for (const label of knownLabels) {
         const isActive = this.filters.labels.includes(label);
-        const tag = labelsContainer.createSpan({
+        const labelBtn = dropdownPanel.createSpan({
           text: label,
           cls: `obsidian-issues-label-filter${isActive ? ' is-active' : ''}`,
         });
         const color = getLabelColor(label);
-        tag.style.backgroundColor = color;
-        tag.style.color = getLabelTextColor(color);
-        tag.addEventListener('click', () => {
-          if (isActive) {
+        labelBtn.style.backgroundColor = color;
+        labelBtn.style.color = getLabelTextColor(color);
+        labelBtn.addEventListener('click', () => {
+          const nowActive = this.filters.labels.includes(label);
+          if (nowActive) {
             this.filters.labels = this.filters.labels.filter((l) => l !== label);
           } else {
             this.filters.labels = [...this.filters.labels, label];
           }
+          labelBtn.toggleClass('is-active', !nowActive);
+          this.updateLabelDropdownBtn();
           this.renderContent();
         });
       }
@@ -249,6 +303,13 @@ export class IssuesView extends ItemView {
       this.filters.sortDir = sortDir;
       this.renderContent();
     });
+  }
+
+  private updateLabelDropdownBtn(): void {
+    if (!this.labelDropdownBtn) return;
+    this.labelDropdownBtn.textContent = this.filters.labels.length > 0
+      ? `Labels (${this.filters.labels.length})`
+      : 'Labels';
   }
 
   private renderContent(): void {
@@ -400,7 +461,7 @@ export class IssuesView extends ItemView {
 
     const topLine = row.createDiv({ cls: 'obsidian-issues-row-top' });
     const statusDot = topLine.createSpan({
-      text: issue.status.toLowerCase() === 'closed' ? '○' : '●',
+      text: issue.status === 'closed' ? '○' : '●',
       cls: `obsidian-issues-status-dot is-${issue.status === 'in-progress' ? 'in-progress' : issue.status}`,
     });
     statusDot.addEventListener('click', (e: MouseEvent) => {
@@ -495,10 +556,8 @@ export class IssuesView extends ItemView {
         return false;
       }
       if (this.filters.labels.length > 0) {
-        for (const label of this.filters.labels) {
-          if (!issue.labels.includes(label)) {
-            return false;
-          }
+        if (!issue.labels.some((l) => this.filters.labels.includes(l))) {
+          return false;
         }
       }
       return true;

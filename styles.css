@@ -53,11 +53,63 @@
   line-height: 1.6;
   white-space: nowrap;
   opacity: 0.6;
+  transition: opacity 0.2s ease, border-color 0.2s ease;
 }
 
 .obsidian-issues-label-filter.is-active {
   opacity: 1;
   border-color: var(--interactive-accent);
+  border-left-width: 3px;
+}
+
+.obsidian-issues-label-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.obsidian-issues-label-dropdown {
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.6;
+  white-space: nowrap;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--size-4-1);
+  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.obsidian-issues-label-dropdown:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.obsidian-issues-label-dropdown-panel {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: var(--size-4-1);
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--size-4-1);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.obsidian-issues-label-dropdown-panel.is-hidden {
+  display: none;
+}
+
+.obsidian-issues-content {
+  transition: opacity 0.2s ease;
 }
 
 .obsidian-issues-list {
@@ -113,6 +165,10 @@
 
 .obsidian-issues-status-dot.is-closed {
   color: var(--text-muted);
+}
+
+.obsidian-issues-status-dot.is-in-progress {
+  color: hsl(30, 100%, 50%);
 }
 
 .obsidian-issues-row-buttons {
@@ -280,8 +336,7 @@
 }
 
 .obsidian-issues-view-toggle {
-  display: flex;
-  gap: 0;
+  display: inline-flex;
   border-radius: var(--radius-s);
   overflow: hidden;
   border: 1px solid var(--background-modifier-border);
@@ -289,13 +344,14 @@
 }
 
 .obsidian-issues-view-toggle-button {
-  padding: 4px 12px;
+  padding: 6px 16px;
   font-size: var(--font-ui-smaller);
   background: transparent;
   border: none;
   cursor: pointer;
   color: var(--text-muted);
   border-right: 1px solid var(--background-modifier-border);
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .obsidian-issues-view-toggle-button:last-child {
@@ -303,7 +359,14 @@
 }
 
 .obsidian-issues-view-toggle-button.is-active {
-  background: var(--background-modifier-selected);
+  background: var(--interactive-accent);
+  color: var(--text-on-accent, #ffffff);
+  font-weight: var(--font-semibold);
+  border-bottom: 2px solid var(--interactive-accent);
+}
+
+.obsidian-issues-view-toggle-button:hover:not(.is-active) {
+  background: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
@@ -373,6 +436,8 @@
 .obsidian-issues-kanban-card-id {
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
+  opacity: 0.5;
+  font-weight: var(--font-normal);
 }
 
 .obsidian-issues-kanban-card-title {
