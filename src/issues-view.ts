@@ -286,6 +286,20 @@ export class IssuesView extends ItemView {
           this.renderContent();
         });
       }
+
+      const clearLabelsBtn = dropdownPanel.createEl('button', {
+        text: 'Clear all',
+        cls: 'obsidian-issues-clear-labels mod-secondary',
+        type: 'button',
+      });
+      clearLabelsBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.filters.labels = [];
+        this.labelDropdownOpen = false;
+        if (this.labelDropdownPanel) this.labelDropdownPanel.addClass('is-hidden');
+        this.updateLabelDropdownBtn();
+        this.renderContent();
+      });
     }
 
     const sortDropdown = new DropdownComponent(container);
@@ -303,6 +317,36 @@ export class IssuesView extends ItemView {
       this.filters.sortDir = sortDir;
       this.renderContent();
     });
+
+    const hasActiveFilters = this.filters.search ||
+      this.filters.status !== 'all' ||
+      this.filters.project !== '' ||
+      this.filters.priority !== 'all' ||
+      this.filters.labels.length > 0 ||
+      this.filters.sortBy !== 'created' ||
+      this.filters.sortDir !== 'desc';
+
+    if (hasActiveFilters) {
+      const clearAllBtn = container.createEl('button', {
+        text: 'Clear all',
+        cls: 'obsidian-issues-clear-all mod-secondary',
+        type: 'button',
+      });
+      clearAllBtn.addEventListener('click', () => {
+        this.resetAllFilters();
+        void this.refresh();
+      });
+    }
+  }
+
+  private resetAllFilters(): void {
+    this.filters.search = '';
+    this.filters.status = 'all';
+    this.filters.project = '';
+    this.filters.priority = 'all';
+    this.filters.labels = [];
+    this.filters.sortBy = 'created';
+    this.filters.sortDir = 'desc';
   }
 
   private updateLabelDropdownBtn(): void {

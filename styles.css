@@ -108,6 +108,18 @@
   display: none;
 }
 
+.obsidian-issues-clear-all {
+  white-space: nowrap;
+}
+
+.obsidian-issues-clear-labels {
+  width: 100%;
+  margin-top: var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  border-top: 1px solid var(--background-modifier-border);
+}
+
 .obsidian-issues-content {
   transition: opacity 0.2s ease;
 }
