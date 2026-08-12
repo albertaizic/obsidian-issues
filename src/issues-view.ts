@@ -3,6 +3,7 @@ import {
   ItemView,
   moment,
   Notice,
+  TFile,
   setIcon,
   TextComponent,
   WorkspaceLeaf,
@@ -592,6 +593,21 @@ export class IssuesView extends ItemView {
       meta.createSpan({
         text: `Due ${parseDueDate(issue.due).format('DD/MM/YYYY')}`,
         cls: 'obsidian-issues-due',
+      });
+    }
+    if (issue.source) {
+      const sourceLink = meta.createEl('a', {
+        text: issue.source,
+        cls: 'obsidian-issues-source-link',
+      });
+      sourceLink.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sourceFile = this.app.vault.getAbstractFileByPath(issue.source);
+        if (sourceFile instanceof TFile) {
+          void this.app.workspace.getLeaf(false).openFile(sourceFile);
+        } else {
+          new Notice('Note not found.');
+        }
       });
     }
 

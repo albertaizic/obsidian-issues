@@ -255,6 +255,16 @@
   color: var(--text-warning);
 }
 
+.obsidian-issues-source-link {
+  color: var(--interactive-accent);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.obsidian-issues-source-link:hover {
+  text-decoration: underline;
+}
+
 .obsidian-issues-tag-input {
   position: relative;
 }

@@ -8,6 +8,7 @@ export interface IssueData {
   status: IssueStatus;
   priority: IssuePriority;
   project: string;
+  source: string;
   labels: string[];
   due: string;
   created: string;

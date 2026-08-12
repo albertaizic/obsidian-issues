@@ -1,5 +1,6 @@
-import { Plugin } from 'obsidian';
+import { Notice, Plugin } from 'obsidian';
 import { ISSUES_FOLDER, VIEW_TYPE_ISSUES } from './constants';
+import { IssueModal } from './issue-modal';
 import { IssueService } from './issue-service';
 import { IssuesView } from './issues-view';
 
@@ -19,6 +20,14 @@ export default class ObsidianIssuesPlugin extends Plugin {
       name: 'Open issues',
       callback: () => {
         void this.activateIssuesView();
+      },
+    });
+
+    this.addCommand({
+      id: 'create-issue-for-current-note',
+      name: 'Create issue for current note',
+      callback: () => {
+        void this.createIssueForCurrentNote();
       },
     });
 
@@ -78,5 +87,37 @@ export default class ObsidianIssuesPlugin extends Plugin {
 
   private isIssuesPath(path: string): boolean {
     return path === ISSUES_FOLDER || path.startsWith(`${ISSUES_FOLDER}/`);
+  }
+
+  private async createIssueForCurrentNote(): Promise<void> {
+    const activeFile = this.app.workspace.getActiveFile();
+    if (!activeFile) {
+      new Notice('No active note to create an issue from.');
+      return;
+    }
+
+    const [knownLabels, knownProjects] = await Promise.all([
+      this.issueService.getAllLabels(),
+      this.issueService.getAllProjects(),
+    ]);
+
+    new IssueModal(this.app, {
+      title: 'New issue',
+      initial: {
+        title: activeFile.basename,
+        project: activeFile.basename,
+        source: activeFile.path,
+      },
+      knownLabels,
+      knownProjects,
+      statusEditable: false,
+      submitLabel: 'Create',
+      onSubmit: async (data) => {
+        const file = await this.issueService.createIssue(data);
+        await this.issueService.linkIssueToNote(activeFile.path, file.basename);
+        await this.app.workspace.getLeaf(false).openFile(file);
+        new Notice(`Created ${file.basename}`);
+      },
+    }).open();
   }
 }

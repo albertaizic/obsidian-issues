@@ -3,6 +3,7 @@ import {
   ISSUES_FOLDER,
   ISSUE_FILENAME_PATTERN,
   FRONTMATTER_FIELD_ORDER,
+  ISSUES_FRONTMATTER_KEY,
 } from './constants';
 import type { Issue, IssueData, IssuePriority, IssueStatus } from './types';
 
@@ -82,6 +83,23 @@ export class IssueService {
     await this.app.vault.modify(file, this.buildFileContent(yaml, body));
   }
 
+  async linkIssueToNote(notePath: string, issueId: string): Promise<void> {
+    const file = this.app.vault.getAbstractFileByPath(notePath);
+    if (!(file instanceof TFile)) return;
+
+    const content = await this.app.vault.cachedRead(file);
+    const frontmatter = this.parseFrontmatter(content);
+    const existing = this.toStringArrayValue(frontmatter[ISSUES_FRONTMATTER_KEY], []);
+    if (existing.includes(issueId)) return;
+
+    const body = this.extractBody(content);
+    const yaml = this.serializeFrontmatter({
+      ...frontmatter,
+      [ISSUES_FRONTMATTER_KEY]: [...existing, issueId],
+    });
+    await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+  }
+
   private getIssueFiles(): TFile[] {
     return this.app.vault
       .getMarkdownFiles()
@@ -110,6 +128,7 @@ export class IssueService {
       status: this.toStringValue(frontmatter.status, 'open') as IssueStatus,
       priority: this.toStringValue(frontmatter.priority, 'medium') as IssuePriority,
       project: this.toStringValue(frontmatter.project, ''),
+      source: this.toStringValue(frontmatter.source, ''),
       labels: this.toStringArrayValue(frontmatter.labels, []),
       due: this.toStringValue(frontmatter.due, ''),
       created: this.toStringValue(

@@ -191,6 +191,7 @@ export class IssueModal extends Modal {
         : (this.options.initial.status ?? 'open'),
       priority: this.priorityDropdown.getValue() as IssuePriority,
       project: this.projectDropdown.getValue().trim(),
+      source: this.options.initial.source ?? '',
       labels: this.tagInput.getValue(),
       due: toEuropeanDate(this.dueInput.getValue()),
       created:
