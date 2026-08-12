@@ -81,6 +81,21 @@ Date format updated to day/month/year (e.g. `10/08/2026`).
 
 ![Issues sidebar with search and filters](screenshots/v0.3-issue-sidebar.png)
 
+## Milestone: v0.4.0 — Kanban
+
+Introduces a visual workflow for managing issues alongside the existing list view.
+
+- **List / Kanban view switching**
+- **Open, In Progress and Closed columns**
+- **Drag-and-drop issue cards**
+- **Moving a card automatically updates Markdown frontmatter**
+- **Status synchronization between Kanban and list views**
+- **Basic dashboard statistics**
+- **Improved search filtering**
+
+![Issues Kanban view](screenshots/v0.4-issues-kaban-view.png)
+![Full view](screenshots/v0.4-full-view.png)
+
 ## Development setup
 
 Use a separate development vault. A convenient layout is:
@@ -129,6 +144,11 @@ The build produces `main.js` in the repository root. Obsidian loads the plugin f
 
 ## Screenshots
 
+### v0.4.0
+
+![Issues Kanban view](screenshots/v0.4-issues-kaban-view.png)
+![Full view](screenshots/v0.4-full-view.png)
+
 ### v0.3
 
 ![Issues sidebar with search and filters](screenshots/v0.3-issue-sidebar.png)
@@ -151,5 +171,5 @@ The build produces `main.js` in the repository root. Obsidian loads the plugin f
 - **v0.1** ~ completed — create/read/close issues
 - **v0.2** ~completed — labels, priority, projects, due dates, edit modal
 - **v0.3** ~completed — filters, search
-- **v0.4** — Kanban/dashboard
+- **v0.4** ~completed — Kanban/dashboard
 - **v1.0** — polished release, tests, documentation, demo GIF, GitHub release
