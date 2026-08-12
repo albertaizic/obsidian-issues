@@ -504,6 +504,21 @@ export class IssuesView extends ItemView {
         cls: 'obsidian-issues-due',
       });
     }
+    if (issue.source) {
+      const sourceLink = meta.createEl('a', {
+        text: issue.source,
+        cls: 'obsidian-issues-source-link',
+      });
+      sourceLink.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const sourceFile = this.app.vault.getAbstractFileByPath(issue.source);
+        if (sourceFile instanceof TFile) {
+          void this.app.workspace.getLeaf(false).openFile(sourceFile);
+        } else {
+          new Notice('Note not found.');
+        }
+      });
+    }
 
     card.addEventListener('dragstart', (e: DragEvent) => {
       e.dataTransfer?.setData('text/plain', issue.id);

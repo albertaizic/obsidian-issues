@@ -39,7 +39,7 @@ export class IssueModal extends Modal {
   private titleInput!: TextComponent;
   private statusDropdown: DropdownComponent | null = null;
   private priorityDropdown!: DropdownComponent;
-  private projectDropdown!: DropdownComponent;
+  private projectInput!: TextComponent;
   private tagInput!: TagInput;
   private dueInput!: TextComponent;
 
@@ -112,16 +112,20 @@ export class IssueModal extends Modal {
       'label',
       { text: 'Project', cls: 'obsidian-issues-field-label' },
     );
-    this.projectDropdown = new DropdownComponent(
-      projectRow.createDiv({ cls: 'obsidian-issues-field-input' }),
-    );
-    this.projectDropdown.addOption('', 'Select a project');
+    const projectInputEl = projectRow.createDiv({ cls: 'obsidian-issues-field-input' });
+    this.projectInput = new TextComponent(projectInputEl);
+    this.projectInput.inputEl.setAttribute('list', 'obsidian-issues-project-list');
+    this.projectInput.setPlaceholder('Select or type a project');
+    const dataList = projectInputEl.createEl('datalist', {
+      cls: 'obsidian-issues-project-datalist',
+    });
+    dataList.id = 'obsidian-issues-project-list';
     for (const project of this.options.knownProjects) {
-      this.projectDropdown.addOption(project, project);
+      if (project.length > 0) {
+        dataList.createEl('option', { value: project });
+      }
     }
-    this.projectDropdown.setValue(
-      this.options.initial.project ?? '',
-    );
+    this.projectInput.setValue(this.options.initial.project ?? '');
 
     const labelsRow = form.createDiv({ cls: 'obsidian-issues-field' });
     labelsRow.createEl(
@@ -190,7 +194,7 @@ export class IssueModal extends Modal {
         ? (this.statusDropdown.getValue() as IssueStatus)
         : (this.options.initial.status ?? 'open'),
       priority: this.priorityDropdown.getValue() as IssuePriority,
-      project: this.projectDropdown.getValue().trim(),
+      project: this.projectInput.getValue().trim(),
       source: this.options.initial.source ?? '',
       labels: this.tagInput.getValue(),
       due: toEuropeanDate(this.dueInput.getValue()),
@@ -203,6 +207,7 @@ export class IssueModal extends Modal {
   }
 
   onClose(): void {
+    this.tagInput.destroy();
     this.contentEl.empty();
   }
 }

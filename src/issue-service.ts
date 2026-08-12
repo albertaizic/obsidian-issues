@@ -93,11 +93,16 @@ export class IssueService {
     if (existing.includes(issueId)) return;
 
     const body = this.extractBody(content);
-    const yaml = this.serializeFrontmatter({
-      ...frontmatter,
-      [ISSUES_FRONTMATTER_KEY]: [...existing, issueId],
-    });
+    const yaml = this.serializeFrontmatter(
+      { ...frontmatter, [ISSUES_FRONTMATTER_KEY]: [...existing, issueId] },
+      [ISSUES_FRONTMATTER_KEY],
+    );
     await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+  }
+
+  async countIssuesForNote(notePath: string): Promise<number> {
+    const issues = await this.listIssues();
+    return issues.filter((i) => i.source === notePath).length;
   }
 
   private getIssueFiles(): TFile[] {
@@ -131,7 +136,7 @@ export class IssueService {
       source: this.toStringValue(frontmatter.source, ''),
       labels: this.toStringArrayValue(frontmatter.labels, []),
       due: this.toStringValue(frontmatter.due, ''),
-      created: this.toStringValue(
+      created: this.toDateValue(
         frontmatter.created,
         new Date().toISOString().slice(0, 10),
       ),
@@ -163,6 +168,11 @@ export class IssueService {
     return typeof value === 'string' && value.trim().length > 0 ? value : fallback;
   }
 
+  private toDateValue(value: unknown, fallback: string): string {
+    if (value instanceof Date) return value.toISOString().slice(0, 10);
+    return this.toStringValue(value, fallback);
+  }
+
   private toStringArrayValue(
     value: unknown,
     fallback: string[],
@@ -176,7 +186,10 @@ export class IssueService {
     return fallback;
   }
 
-  private serializeFrontmatter(data: Record<string, unknown>): string {
+  private serializeFrontmatter(
+    data: Record<string, unknown>,
+    flowKeys: string[] = [],
+  ): string {
     const lines: string[] = [];
 
     for (const key of FRONTMATTER_FIELD_ORDER) {
@@ -184,7 +197,7 @@ export class IssueService {
       if (value === undefined || value === null) {
         continue;
       }
-      lines.push(...this.serializeValue(key, value));
+      lines.push(...this.serializeValue(key, value, flowKeys.includes(key)));
     }
 
     for (const [key, value] of Object.entries(data)) {
@@ -194,24 +207,32 @@ export class IssueService {
       if (value === undefined || value === null) {
         continue;
       }
-      lines.push(...this.serializeValue(key, value));
+      lines.push(...this.serializeValue(key, value, flowKeys.includes(key)));
     }
 
     return lines.join('\n');
   }
 
-  private serializeValue(key: string, value: unknown): string[] {
+  private serializeValue(
+    key: string,
+    value: unknown,
+    flow = false,
+  ): string[] {
     if (Array.isArray(value)) {
       if (value.length === 0) {
         return [`${key}: []`];
       }
-      const items = value
-        .filter(
-          (item): item is string =>
-            typeof item === 'string' && item.trim().length > 0,
-        )
-        .map((item) => `  - ${item}`);
-      return [`${key}:`, ...items];
+      const items = value.filter(
+        (item): item is string =>
+          typeof item === 'string' && item.trim().length > 0,
+      );
+      if (items.length === 0) {
+        return [`${key}: []`];
+      }
+      if (flow) {
+        return [`${key}: [${items.join(', ')}]`];
+      }
+      return [`${key}:`, ...items.map((item) => `  - ${item}`)];
     }
     if (typeof value === 'string') {
       return [`${key}: ${value}`];

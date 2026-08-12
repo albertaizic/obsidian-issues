@@ -19,6 +19,12 @@ export class TagInput {
   private suggestions: string[] = [];
   private activeIndex = -1;
 
+  private readonly handleScroll = (): void => {
+    if (!this.suggestionsEl.classList.contains('is-hidden')) {
+      this.positionSuggestions();
+    }
+  };
+
   constructor(containerEl: HTMLElement, props: TagInputProps) {
     this.containerEl = containerEl;
     this.tags = [...props.value];
@@ -41,8 +47,17 @@ export class TagInput {
 
     this.inputEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
     this.inputEl.addEventListener('input', () => this.handleInput());
+    this.containerEl.addEventListener('scroll', this.handleScroll);
+    window.addEventListener('scroll', this.handleScroll, true);
+    window.addEventListener('resize', this.handleScroll);
 
     this.renderTags();
+  }
+
+  destroy(): void {
+    this.containerEl.removeEventListener('scroll', this.handleScroll);
+    window.removeEventListener('scroll', this.handleScroll, true);
+    window.removeEventListener('resize', this.handleScroll);
   }
 
   getValue(): string[] {
@@ -120,6 +135,13 @@ export class TagInput {
     }
 
     this.tagsWrapper.appendChild(existingInput);
+    this.positionSuggestions();
+  }
+
+  private positionSuggestions(): void {
+    const rect = this.inputEl.getBoundingClientRect();
+    this.suggestionsEl.style.left = `${rect.left}px`;
+    this.suggestionsEl.style.top = `${rect.bottom + 4}px`;
   }
 
   private renderSuggestions(): void {
@@ -131,6 +153,7 @@ export class TagInput {
     }
 
     this.suggestionsEl.removeClass('is-hidden');
+    this.positionSuggestions();
 
     for (let i = 0; i < this.suggestions.length; i++) {
       const label = this.suggestions[i]!;
