@@ -100,11 +100,6 @@ export class IssueService {
     await this.app.vault.modify(file, this.buildFileContent(yaml, body));
   }
 
-  async countIssuesForNote(notePath: string): Promise<number> {
-    const issues = await this.listIssues();
-    return issues.filter((i) => i.source === notePath).length;
-  }
-
   private getIssueFiles(): TFile[] {
     return this.app.vault
       .getMarkdownFiles()
@@ -233,6 +228,9 @@ export class IssueService {
         return [`${key}: [${items.join(', ')}]`];
       }
       return [`${key}:`, ...items.map((item) => `  - ${item}`)];
+    }
+    if (value instanceof Date) {
+      return [`${key}: ${value.toISOString().slice(0, 10)}`];
     }
     if (typeof value === 'string') {
       return [`${key}: ${value}`];

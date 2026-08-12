@@ -676,7 +676,7 @@ export class IssuesView extends ItemView {
       if (sortBy === 'created' || sortBy === 'due') {
         const aVal = issueField(a, sortBy) || '';
         const bVal = issueField(b, sortBy) || '';
-        compareValue = aVal.localeCompare(bVal);
+        compareValue = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       } else if (sortBy === 'priority') {
         const aIdx = ISSUE_PRIORITIES.indexOf(a.priority);
         const bIdx = ISSUE_PRIORITIES.indexOf(b.priority);

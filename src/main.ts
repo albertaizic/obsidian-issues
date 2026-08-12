@@ -96,16 +96,15 @@ export default class ObsidianIssuesPlugin extends Plugin {
       return;
     }
 
-    const [knownLabels, knownProjects, noteIssueCount] = await Promise.all([
+    const [knownLabels, knownProjects] = await Promise.all([
       this.issueService.getAllLabels(),
       this.issueService.getAllProjects(),
-      this.issueService.countIssuesForNote(activeFile.path),
     ]);
 
     new IssueModal(this.app, {
       title: 'New issue',
       initial: {
-        title: `Issue ${noteIssueCount + 1}: ${activeFile.basename}`,
+        title: activeFile.basename,
         project: activeFile.basename,
         source: activeFile.path,
       },
