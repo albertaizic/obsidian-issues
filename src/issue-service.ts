@@ -66,6 +66,41 @@ export class IssueService {
     await this.app.fileManager.trashFile(file);
   }
 
+  async unlinkIssueFromNote(issueId: string, notePath: string): Promise<void> {
+    if (notePath.length === 0) return;
+
+    const file = this.app.vault.getAbstractFileByPath(notePath);
+    if (!(file instanceof TFile)) return;
+
+    const content = await this.app.vault.cachedRead(file);
+    const frontmatter = this.parseFrontmatter(content);
+    const existing = this.toStringArrayValue(frontmatter[ISSUES_FRONTMATTER_KEY], []);
+    const updated = existing.filter((id) => id !== issueId);
+    if (updated.length === existing.length) return;
+
+    const body = this.extractBody(content);
+    const yaml = this.serializeFrontmatter(
+      { ...frontmatter, [ISSUES_FRONTMATTER_KEY]: updated },
+      [ISSUES_FRONTMATTER_KEY],
+    );
+    await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+  }
+
+  async clearSourceForDeletedNote(notePath: string): Promise<void> {
+    const files = this.getIssueFiles();
+
+    for (const file of files) {
+      const content = await this.app.vault.cachedRead(file);
+      const frontmatter = this.parseFrontmatter(content);
+      const source = this.toStringValue(frontmatter.source, '');
+      if (source !== notePath) continue;
+
+      const body = this.extractBody(content);
+      const yaml = this.serializeFrontmatter({ ...frontmatter, source: '' });
+      await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+    }
+  }
+
   async toggleIssueStatus(file: TFile): Promise<void> {
     const content = await this.app.vault.cachedRead(file);
     const frontmatter = this.parseFrontmatter(content);

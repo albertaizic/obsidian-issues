@@ -683,12 +683,17 @@ export class IssuesView extends ItemView {
         compareValue = aIdx - bIdx;
       }
 
+      if (compareValue === 0) {
+        compareValue = a.id.localeCompare(b.id, undefined, { numeric: true });
+      }
+
       return compareValue * multiplier;
     });
   }
 
   private async deleteIssue(issue: Issue): Promise<void> {
     try {
+      await this.issueService.unlinkIssueFromNote(issue.id, issue.source);
       await this.issueService.deleteIssue(issue.file);
       await this.refresh();
     } catch (error) {

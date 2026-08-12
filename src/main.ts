@@ -50,7 +50,12 @@ export default class ObsidianIssuesPlugin extends Plugin {
     );
 
     this.registerEvent(
-      this.app.vault.on('delete', (file) => refreshForPath(file.path)),
+      this.app.vault.on('delete', (file) => {
+        if (!this.isIssuesPath(file.path)) {
+          void this.issueService.clearSourceForDeletedNote(file.path);
+        }
+        refreshForPath(file.path);
+      }),
     );
 
     this.registerEvent(
