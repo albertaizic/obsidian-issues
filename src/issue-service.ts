@@ -66,6 +66,11 @@ export class IssueService {
     await this.app.fileManager.trashFile(file);
   }
 
+  async countIssuesForNote(notePath: string): Promise<number> {
+    const issues = await this.listIssues();
+    return issues.filter((i) => i.source === notePath).length;
+  }
+
   async unlinkIssueFromNote(issueId: string, notePath: string): Promise<void> {
     if (notePath.length === 0) return;
 

@@ -332,14 +332,16 @@
 }
 
 .obsidian-issues-tag-input-suggestion {
-  padding: 4px 8px;
+  padding: 2px 8px;
   cursor: pointer;
   font-size: var(--font-ui-smaller);
+  border-radius: var(--radius-s);
+  white-space: nowrap;
 }
 
 .obsidian-issues-tag-input-suggestion:hover,
 .obsidian-issues-tag-input-suggestion.is-active {
-  background: var(--background-modifier-hover);
+  opacity: 0.7;
 }
 
 .obsidian-issues-form {
@@ -466,14 +468,32 @@
 .obsidian-issues-kanban-card-id {
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
-  opacity: 0.5;
+  opacity: 0.35;
   font-weight: var(--font-normal);
+}
+
+.obsidian-issues-kanban-card-top {
+  display: flex;
+  align-items: center;
+  gap: var(--size-4-1);
 }
 
 .obsidian-issues-kanban-card-title {
   font-weight: var(--font-medium);
   margin: 4px 0;
   overflow-wrap: anywhere;
+  flex: 1;
+}
+
+.obsidian-issues-kanban-card-delete {
+  opacity: 0.5;
+  padding: 0 var(--size-4-1);
+  display: flex;
+  align-items: center;
+}
+
+.obsidian-issues-kanban-card:hover .obsidian-issues-kanban-card-delete {
+  opacity: 1;
 }
 
 .obsidian-issues-kanban-card-meta {

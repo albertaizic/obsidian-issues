@@ -47,6 +47,7 @@ export class TagInput {
 
     this.inputEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
     this.inputEl.addEventListener('input', () => this.handleInput());
+    this.inputEl.addEventListener('focus', () => this.handleInput());
     this.containerEl.addEventListener('scroll', this.handleScroll);
     window.addEventListener('scroll', this.handleScroll, true);
     window.addEventListener('resize', this.handleScroll);
@@ -92,10 +93,6 @@ export class TagInput {
 
   private handleInput(): void {
     const query = this.inputEl.value.trim();
-    if (query.length === 0) {
-      this.hideSuggestions();
-      return;
-    }
 
     this.suggestions = this.knownLabels
       .filter(
@@ -162,6 +159,9 @@ export class TagInput {
           i === this.activeIndex ? ' is-active' : ''
         }`,
       });
+      const color = getLabelColor(label);
+      item.style.backgroundColor = color;
+      item.style.color = getLabelTextColor(color);
       item.textContent = label;
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();

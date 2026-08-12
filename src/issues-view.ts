@@ -489,8 +489,20 @@ export class IssuesView extends ItemView {
     card.dataset.issueId = issue.id;
     card.setAttr('draggable', 'true');
 
-    card.createSpan({ text: issue.id, cls: 'obsidian-issues-kanban-card-id' });
-    card.createSpan({ text: issue.title, cls: 'obsidian-issues-kanban-card-title' });
+    const topLine = card.createDiv({ cls: 'obsidian-issues-kanban-card-top' });
+    topLine.createSpan({ text: issue.id, cls: 'obsidian-issues-kanban-card-id' });
+    topLine.createSpan({ text: issue.title, cls: 'obsidian-issues-kanban-card-title' });
+
+    const deleteBtn = topLine.createEl('button', {
+      cls: 'obsidian-issues-kanban-card-delete mod-warning',
+      title: 'Delete issue',
+      type: 'button',
+    });
+    setIcon(deleteBtn, 'trash-2');
+    deleteBtn.addEventListener('click', (e: MouseEvent) => {
+      e.stopPropagation();
+      void this.deleteIssue(issue);
+    });
 
     const meta = card.createDiv({ cls: 'obsidian-issues-kanban-card-meta' });
     meta.createSpan({
