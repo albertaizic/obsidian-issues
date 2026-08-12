@@ -21,9 +21,9 @@ import type { IssueService } from './issue-service';
 
 interface FilterState {
   search: string;
-  status: 'all' | IssueStatus;
-  project: string;
-  priority: 'all' | IssuePriority;
+  status: IssueStatus[];
+  project: string[];
+  priority: IssuePriority[];
   labels: string[];
   sortBy: 'created' | 'due' | 'priority';
   sortDir: 'asc' | 'desc';
@@ -36,17 +36,15 @@ export class IssuesView extends ItemView {
   private viewMode: 'list' | 'kanban' = 'list';
   private filters: FilterState = {
     search: '',
-    status: 'all',
-    project: '',
-    priority: 'all',
+    status: [],
+    project: [],
+    priority: [],
     labels: [],
     sortBy: 'created',
     sortDir: 'desc',
   };
 
-  private labelDropdownOpen = false;
-  private labelDropdownBtn: HTMLElement | null = null;
-  private labelDropdownPanel: HTMLElement | null = null;
+  private dropdowns: Map<string, { button: HTMLElement; panel: HTMLElement; open: boolean }> = new Map();
   private listToggleButton: HTMLElement | null = null;
   private kanbanToggleButton: HTMLElement | null = null;
 
@@ -80,7 +78,7 @@ export class IssuesView extends ItemView {
 
   async refresh(): Promise<void> {
     document.removeEventListener('click', this.handleDocumentClick);
-    this.labelDropdownOpen = false;
+    this.dropdowns.clear();
     const { contentEl } = this;
     contentEl.empty();
     contentEl.addClass('obsidian-issues-view');
@@ -145,16 +143,12 @@ export class IssuesView extends ItemView {
   }
 
   private handleDocumentClick = (e: MouseEvent): void => {
-    if (
-      this.labelDropdownOpen &&
-      this.labelDropdownPanel &&
-      this.labelDropdownBtn &&
-      e.target instanceof Node &&
-      !this.labelDropdownBtn.contains(e.target) &&
-      !this.labelDropdownPanel.contains(e.target)
-    ) {
-      this.labelDropdownOpen = false;
-      this.labelDropdownPanel.addClass('is-hidden');
+    if (!(e.target instanceof Node)) return;
+    for (const [, state] of this.dropdowns) {
+      if (state.open && !state.button.contains(e.target) && !state.panel.contains(e.target)) {
+        state.open = false;
+        state.panel.addClass('is-hidden');
+      }
     }
   };
 
@@ -199,41 +193,57 @@ export class IssuesView extends ItemView {
         this.renderContent();
       });
 
-    const statusDropdown = new DropdownComponent(container);
-    statusDropdown.addOption('all', 'All');
-    for (const status of ISSUE_STATUSES) {
-      statusDropdown.addOption(status, ISSUE_STATUS_LABELS[status]);
-    }
-    statusDropdown.setValue(this.filters.status);
-    statusDropdown.onChange((value) => {
-      this.filters.status = value as 'all' | IssueStatus;
-      this.renderContent();
-    });
+    this.renderFilterDropdown(
+      container,
+      'status',
+      'Status',
+      ISSUE_STATUSES.map((s) => ({ value: s, label: ISSUE_STATUS_LABELS[s] })),
+      () => this.filters.status,
+      (value) => {
+        const v = value as IssueStatus;
+        if (this.filters.status.includes(v)) {
+          this.filters.status = this.filters.status.filter((s) => s !== v);
+        } else {
+          this.filters.status = [...this.filters.status, v];
+        }
+      },
+    );
 
-    const projectDropdown = new DropdownComponent(container);
-    projectDropdown.addOption('', 'All projects');
     const knownProjects = Array.from(
       new Set(issues.map((i) => i.project).filter((p) => p.length > 0)),
     ).sort();
-    for (const project of knownProjects) {
-      projectDropdown.addOption(project, project);
+    if (knownProjects.length > 0) {
+      this.renderFilterDropdown(
+        container,
+        'project',
+        'Project',
+        knownProjects.map((p) => ({ value: p, label: p })),
+        () => this.filters.project,
+        (value) => {
+          if (this.filters.project.includes(value)) {
+            this.filters.project = this.filters.project.filter((p) => p !== value);
+          } else {
+            this.filters.project = [...this.filters.project, value];
+          }
+        },
+      );
     }
-    projectDropdown.setValue(this.filters.project);
-    projectDropdown.onChange((value) => {
-      this.filters.project = value;
-      this.renderContent();
-    });
 
-    const priorityDropdown = new DropdownComponent(container);
-    priorityDropdown.addOption('all', 'All priorities');
-    for (const priority of ISSUE_PRIORITIES) {
-      priorityDropdown.addOption(priority, ISSUE_PRIORITY_LABELS[priority]);
-    }
-    priorityDropdown.setValue(this.filters.priority);
-    priorityDropdown.onChange((value) => {
-      this.filters.priority = value as 'all' | IssuePriority;
-      this.renderContent();
-    });
+    this.renderFilterDropdown(
+      container,
+      'priority',
+      'Priority',
+      ISSUE_PRIORITIES.map((p) => ({ value: p, label: ISSUE_PRIORITY_LABELS[p] })),
+      () => this.filters.priority,
+      (value) => {
+        const v = value as IssuePriority;
+        if (this.filters.priority.includes(v)) {
+          this.filters.priority = this.filters.priority.filter((p) => p !== v);
+        } else {
+          this.filters.priority = [...this.filters.priority, v];
+        }
+      },
+    );
 
     const labelSet = new Set<string>();
     for (const issue of issues) {
@@ -243,63 +253,25 @@ export class IssuesView extends ItemView {
     }
     const knownLabels = [...labelSet].sort();
     if (knownLabels.length > 0) {
-      const dropdownWrapper = container.createDiv({
-        cls: 'obsidian-issues-label-dropdown-wrapper',
-      });
-      const dropdownBtn = dropdownWrapper.createEl('button', {
-        text: this.filters.labels.length > 0
-          ? `Labels (${this.filters.labels.length})`
-          : 'Labels',
-        cls: 'obsidian-issues-label-dropdown mod-plaintext',
-        type: 'button',
-      });
-      this.labelDropdownBtn = dropdownBtn;
-
-      const dropdownPanel = dropdownWrapper.createDiv({
-        cls: 'obsidian-issues-label-dropdown-panel is-hidden',
-      });
-      this.labelDropdownPanel = dropdownPanel;
-
-      dropdownBtn.addEventListener('click', () => {
-        this.labelDropdownOpen = !this.labelDropdownOpen;
-        dropdownPanel.toggleClass('is-hidden', !this.labelDropdownOpen);
-      });
-
-      for (const label of knownLabels) {
-        const isActive = this.filters.labels.includes(label);
-        const labelBtn = dropdownPanel.createSpan({
-          text: label,
-          cls: `obsidian-issues-label-filter${isActive ? ' is-active' : ''}`,
-        });
-        const color = getLabelColor(label);
-        labelBtn.style.backgroundColor = color;
-        labelBtn.style.color = getLabelTextColor(color);
-        labelBtn.addEventListener('click', () => {
-          const nowActive = this.filters.labels.includes(label);
-          if (nowActive) {
-            this.filters.labels = this.filters.labels.filter((l) => l !== label);
+      this.renderFilterDropdown(
+        container,
+        'labels',
+        'Labels',
+        knownLabels.map((l) => ({
+          value: l,
+          label: l,
+          bg: getLabelColor(l),
+          textColor: getLabelTextColor(getLabelColor(l)),
+        })),
+        () => this.filters.labels,
+        (value) => {
+          if (this.filters.labels.includes(value)) {
+            this.filters.labels = this.filters.labels.filter((l) => l !== value);
           } else {
-            this.filters.labels = [...this.filters.labels, label];
+            this.filters.labels = [...this.filters.labels, value];
           }
-          labelBtn.toggleClass('is-active', !nowActive);
-          this.updateLabelDropdownBtn();
-          this.renderContent();
-        });
-      }
-
-      const clearLabelsBtn = dropdownPanel.createEl('button', {
-        text: 'Clear all',
-        cls: 'obsidian-issues-clear-labels mod-secondary',
-        type: 'button',
-      });
-      clearLabelsBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        this.filters.labels = [];
-        this.labelDropdownOpen = false;
-        if (this.labelDropdownPanel) this.labelDropdownPanel.addClass('is-hidden');
-        this.updateLabelDropdownBtn();
-        this.renderContent();
-      });
+        },
+      );
     }
 
     const sortDropdown = new DropdownComponent(container);
@@ -318,42 +290,97 @@ export class IssuesView extends ItemView {
       this.renderContent();
     });
 
-    const hasActiveFilters = this.filters.search ||
-      this.filters.status !== 'all' ||
-      this.filters.project !== '' ||
-      this.filters.priority !== 'all' ||
-      this.filters.labels.length > 0 ||
-      this.filters.sortBy !== 'created' ||
-      this.filters.sortDir !== 'desc';
-
-    if (hasActiveFilters) {
-      const clearAllBtn = container.createEl('button', {
-        text: 'Clear all',
-        cls: 'obsidian-issues-clear-all mod-secondary',
-        type: 'button',
-      });
-      clearAllBtn.addEventListener('click', () => {
-        this.resetAllFilters();
-        void this.refresh();
-      });
-    }
+    const clearAllBtn = container.createEl('button', {
+      text: 'Clear all',
+      cls: 'obsidian-issues-clear-all mod-secondary',
+      type: 'button',
+    });
+    clearAllBtn.addEventListener('click', () => {
+      this.resetAllFilters();
+      void this.refresh();
+    });
   }
 
   private resetAllFilters(): void {
     this.filters.search = '';
-    this.filters.status = 'all';
-    this.filters.project = '';
-    this.filters.priority = 'all';
+    this.filters.status = [];
+    this.filters.project = [];
+    this.filters.priority = [];
     this.filters.labels = [];
     this.filters.sortBy = 'created';
     this.filters.sortDir = 'desc';
   }
 
-  private updateLabelDropdownBtn(): void {
-    if (!this.labelDropdownBtn) return;
-    this.labelDropdownBtn.textContent = this.filters.labels.length > 0
-      ? `Labels (${this.filters.labels.length})`
-      : 'Labels';
+  private renderFilterDropdown(
+    container: HTMLElement,
+    name: string,
+    labelText: string,
+    options: { value: string; label: string; bg?: string; textColor?: string }[],
+    getSelected: () => string[],
+    toggleValue: (value: string) => void,
+  ): void {
+    const wrapper = container.createDiv({
+      cls: 'obsidian-issues-filter-dropdown-wrapper',
+    });
+    const selected = getSelected();
+    const button = wrapper.createEl('button', {
+      text: selected.length > 0 ? `${labelText} (${selected.length})` : labelText,
+      cls: 'obsidian-issues-label-dropdown mod-plaintext',
+      type: 'button',
+    });
+    const panel = wrapper.createDiv({
+      cls: 'obsidian-issues-label-dropdown-panel is-hidden',
+    });
+
+    this.dropdowns.set(name, { button, panel, open: false });
+
+    button.addEventListener('click', () => {
+      const state = this.dropdowns.get(name);
+      if (state) {
+        state.open = !state.open;
+        panel.toggleClass('is-hidden', !state.open);
+      }
+    });
+
+    for (const opt of options) {
+      const isActive = getSelected().includes(opt.value);
+      const btn = panel.createSpan({
+        text: opt.label,
+        cls: `obsidian-issues-label-filter${isActive ? ' is-active' : ''}`,
+      });
+      if (opt.bg) btn.style.backgroundColor = opt.bg;
+      if (opt.textColor) btn.style.color = opt.textColor;
+      btn.addEventListener('click', () => {
+        const wasActive = getSelected().includes(opt.value);
+        toggleValue(opt.value);
+        btn.toggleClass('is-active', !wasActive);
+        const newSelected = getSelected();
+        button.textContent = newSelected.length > 0
+          ? `${labelText} (${newSelected.length})`
+          : labelText;
+        this.renderContent();
+      });
+    }
+
+    if (name === 'labels') {
+      panel.createEl('hr', { cls: 'obsidian-issues-clear-divider' });
+      const clearBtn = panel.createEl('button', {
+        text: 'Clear all',
+        cls: 'obsidian-issues-clear-labels mod-secondary',
+        type: 'button',
+      });
+      clearBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.filters.labels = [];
+        panel.querySelectorAll('.obsidian-issues-label-filter.is-active')
+          .forEach((el) => el.classList.remove('is-active'));
+        button.textContent = 'Labels';
+        const state = this.dropdowns.get(name);
+        if (state) state.open = false;
+        panel.addClass('is-hidden');
+        this.renderContent();
+      });
+    }
   }
 
   private renderContent(): void {
@@ -590,13 +617,13 @@ export class IssuesView extends ItemView {
       ) {
         return false;
       }
-      if (this.filters.status !== 'all' && issue.status !== this.filters.status) {
+      if (this.filters.status.length > 0 && !this.filters.status.includes(issue.status)) {
         return false;
       }
-      if (this.filters.project && issue.project !== this.filters.project) {
+      if (this.filters.project.length > 0 && !this.filters.project.includes(issue.project)) {
         return false;
       }
-      if (this.filters.priority !== 'all' && issue.priority !== this.filters.priority) {
+      if (this.filters.priority.length > 0 && !this.filters.priority.includes(issue.priority)) {
         return false;
       }
       if (this.filters.labels.length > 0) {
