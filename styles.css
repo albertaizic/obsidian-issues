@@ -62,7 +62,8 @@
   border-left-width: 3px;
 }
 
-.obsidian-issues-label-dropdown-wrapper {
+.obsidian-issues-label-dropdown-wrapper,
+.obsidian-issues-filter-dropdown-wrapper {
   position: relative;
   display: inline-block;
 }
@@ -110,6 +111,13 @@
 
 .obsidian-issues-clear-all {
   white-space: nowrap;
+}
+
+.obsidian-issues-clear-divider {
+  width: 100%;
+  border: none;
+  border-top: 1px solid var(--background-modifier-border);
+  margin: var(--size-4-1) 0;
 }
 
 .obsidian-issues-clear-labels {
