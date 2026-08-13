@@ -1,6 +1,6 @@
 {
-  "id": "obsidian-issues",
-  "name": "Obsidian Issues",
+  "id": "vault-issues",
+  "name": "Vault Issues",
   "version": "0.5.0",
   "minAppVersion": "1.7.2",
   "description": "GitHub Issues-inspired tracker with Kanban board, labels, priorities, and note-to-note linking.",
