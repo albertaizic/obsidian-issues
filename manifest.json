@@ -3,7 +3,7 @@
   "name": "Obsidian Issues",
   "version": "0.5.0",
   "minAppVersion": "1.7.2",
-  "description": "GitHub Issues-inspired issue tracking inside Obsidian, stored as Markdown.",
+  "description": "GitHub Issues-inspired tracker with Kanban board, labels, priorities, and note-to-note linking.",
   "author": "Andres Albert Aizic",
   "isDesktopOnly": false
 }
