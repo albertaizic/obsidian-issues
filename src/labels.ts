@@ -19,3 +19,16 @@ export function getLabelTextColor(bg: string): string {
   const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
   return luminance > 0.5 ? '#1a1a1a' : '#ffffff';
 }
+
+/**
+ * Applies a label's colour through CSS custom properties rather than by
+ * assigning `style.backgroundColor` directly. Obsidian's plugin guidelines
+ * disallow setting styles from JavaScript, but custom properties are the
+ * sanctioned escape hatch for values that can only be computed at runtime —
+ * and it lets themes override the palette in CSS.
+ */
+export function applyLabelColor(el: HTMLElement, name: string): void {
+  const background = getLabelColor(name);
+  el.style.setProperty('--issue-label-bg', background);
+  el.style.setProperty('--issue-label-fg', getLabelTextColor(background));
+}

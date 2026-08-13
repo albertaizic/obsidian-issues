@@ -1,14 +1,108 @@
 import { App, normalizePath, parseYaml, TFile } from 'obsidian';
 import {
-  ISSUES_FOLDER,
-  ISSUE_FILENAME_PATTERN,
+  DEFAULT_ISSUE_BODY,
   FRONTMATTER_FIELD_ORDER,
+  ISSUES_FOLDER,
+  ISSUES_FOLDER_HIDDEN_LEGACY,
+  ISSUES_FOLDER_VISIBLE_LEGACY,
   ISSUES_FRONTMATTER_KEY,
+  ISSUE_FILENAME_PATTERN,
+  nextStatus,
+  normalizePriority,
+  normalizeStatus,
 } from './constants';
-import type { Issue, IssueData, IssuePriority, IssueStatus } from './types';
+import { toDisplayDate, toIsoDate } from './dates';
+import type { Issue, IssueData, IssueStatus } from './types';
+
+type Frontmatter = Record<string, unknown>;
 
 export class IssueService {
+  /**
+   * Issues are read from disk on demand and cached until a vault event
+   * invalidates them. Without this, opening the new-issue modal read every
+   * issue file three times (labels, projects and the per-note count each
+   * triggered a full scan).
+   */
+  private cache: Issue[] | null = null;
+  private inFlight: Promise<Issue[]> | null = null;
+  /**
+   * Bumped by every invalidation. A read that finishes after the data it was
+   * based on was invalidated must not install itself as the new cache —
+   * otherwise a vault event arriving mid-read leaves stale issues cached
+   * until the next write.
+   */
+  private generation = 0;
+
   constructor(private readonly app: App) {}
+
+  invalidate(): void {
+    this.cache = null;
+    this.inFlight = null;
+    this.generation += 1;
+  }
+
+  async migrateIssuesFolder(): Promise<void> {
+    const newFolder = normalizePath(ISSUES_FOLDER);
+    const adapter = this.app.vault.adapter;
+
+    if (!(await adapter.exists(newFolder))) {
+      try {
+        await adapter.mkdir(newFolder);
+      } catch {
+        // Already exists — safe to continue.
+      }
+    }
+
+    // Both legacy folders are migrated using the same low-level adapter API
+    // (rather than mixing it with the vault's TFile/TFolder API) so the two
+    // passes can't race against the vault's index — e.g. one pass writing a
+    // file the vault doesn't know about yet, which the other pass would then
+    // fail to detect as a conflict.
+    await this.migrateFolderContents(normalizePath(ISSUES_FOLDER_HIDDEN_LEGACY), newFolder);
+    await this.migrateFolderContents(normalizePath(ISSUES_FOLDER_VISIBLE_LEGACY), newFolder);
+    this.invalidate();
+  }
+
+  /**
+   * Moves every .md file from `sourceFolder` into `destFolder` using the raw
+   * filesystem adapter, skipping anything already present at the
+   * destination, then removes `sourceFolder` if it ends up empty.
+   */
+  private async migrateFolderContents(sourceFolder: string, destFolder: string): Promise<void> {
+    const adapter = this.app.vault.adapter;
+
+    if (sourceFolder === destFolder) return;
+    if (!(await adapter.exists(sourceFolder))) return;
+
+    const { files } = await adapter.list(sourceFolder);
+
+    for (const filePath of files) {
+      if (!filePath.toLowerCase().endsWith('.md')) continue;
+
+      const fileName = filePath.slice(filePath.lastIndexOf('/') + 1);
+      const destPath = normalizePath(`${destFolder}/${fileName}`);
+
+      if (await adapter.exists(destPath)) {
+        // Already migrated (e.g. by an earlier pass, or a previous run) —
+        // leave the destination copy alone and just drop this duplicate.
+        await adapter.remove(filePath);
+        continue;
+      }
+
+      const content = await adapter.read(filePath);
+      await adapter.write(destPath, content);
+      await adapter.remove(filePath);
+    }
+
+    try {
+      const remaining = await adapter.list(sourceFolder);
+      if (remaining.files.length === 0 && remaining.folders.length === 0) {
+        await adapter.rmdir(sourceFolder, false);
+      }
+    } catch {
+      // Not empty, or other error — leave the legacy folder in place.
+    }
+  }
 
   async ensureIssuesFolder(): Promise<void> {
     const folderPath = normalizePath(ISSUES_FOLDER);
@@ -25,19 +119,33 @@ export class IssueService {
 
     const id = this.getNextIssueId();
     const path = normalizePath(`${ISSUES_FOLDER}/${id}.md`);
-    const content = this.buildFileContent(
-      this.serializeFrontmatter({ id, ...data }),
-      'Describe the issue here.\n',
-    );
+    const file = await this.app.vault.create(path, DEFAULT_ISSUE_BODY);
 
-    return this.app.vault.create(path, content);
+    await this.writeIssueFrontmatter(file, (fm) => {
+      fm.id = id;
+      applyIssueData(fm, data);
+    });
+
+    return file;
   }
 
   async listIssues(): Promise<Issue[]> {
-    const files = this.getIssueFiles();
-    const issues = await Promise.all(files.map((file) => this.readIssue(file)));
+    if (this.cache !== null) return this.cache;
+    if (this.inFlight !== null) return this.inFlight;
 
-    return issues.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+    const generation = this.generation;
+    this.inFlight = (async () => {
+      const files = this.getIssueFiles();
+      const issues = await Promise.all(files.map((file) => this.readIssue(file)));
+      issues.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
+      if (this.generation === generation) {
+        this.cache = issues;
+        this.inFlight = null;
+      }
+      return issues;
+    })();
+
+    return this.inFlight;
   }
 
   async getAllLabels(): Promise<string[]> {
@@ -64,6 +172,7 @@ export class IssueService {
 
   async deleteIssue(file: TFile): Promise<void> {
     await this.app.fileManager.trashFile(file);
+    this.invalidate();
   }
 
   async countIssuesForNote(notePath: string): Promise<number> {
@@ -77,73 +186,90 @@ export class IssueService {
     const file = this.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) return;
 
-    const content = await this.app.vault.cachedRead(file);
-    const frontmatter = this.parseFrontmatter(content);
-    const existing = this.toStringArrayValue(frontmatter[ISSUES_FRONTMATTER_KEY], []);
-    const updated = existing.filter((id) => id !== issueId);
-    if (updated.length === existing.length) return;
-
-    const body = this.extractBody(content);
-    const yaml = this.serializeFrontmatter(
-      { ...frontmatter, [ISSUES_FRONTMATTER_KEY]: updated },
-      [ISSUES_FRONTMATTER_KEY],
-    );
-    await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+    await this.app.fileManager.processFrontMatter(file, (fm: Frontmatter) => {
+      const existing = toStringArray(fm[ISSUES_FRONTMATTER_KEY]);
+      const updated = existing.filter((id) => id !== issueId);
+      if (updated.length === 0) {
+        delete fm[ISSUES_FRONTMATTER_KEY];
+      } else {
+        fm[ISSUES_FRONTMATTER_KEY] = updated;
+      }
+    });
   }
 
   async clearSourceForDeletedNote(notePath: string): Promise<void> {
-    const files = this.getIssueFiles();
+    const issues = await this.listIssues();
 
-    for (const file of files) {
-      const content = await this.app.vault.cachedRead(file);
-      const frontmatter = this.parseFrontmatter(content);
-      const source = this.toStringValue(frontmatter.source, '');
-      if (source !== notePath) continue;
-
-      const body = this.extractBody(content);
-      const yaml = this.serializeFrontmatter({ ...frontmatter, source: '' });
-      await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+    for (const issue of issues) {
+      if (issue.source !== notePath) continue;
+      await this.writeIssueFrontmatter(issue.file, (fm) => {
+        delete fm.source;
+      });
     }
   }
 
-  async toggleIssueStatus(file: TFile): Promise<void> {
-    const content = await this.app.vault.cachedRead(file);
-    const frontmatter = this.parseFrontmatter(content);
-    const current = this.toStringValue(frontmatter.status, 'open');
-    const nextStatus: IssueStatus = current === 'open' ? 'closed' : 'open';
-    await this.updateIssue(file, { status: nextStatus });
+  async updateSourcePath(oldPath: string, newPath: string): Promise<void> {
+    const issues = await this.listIssues();
+
+    for (const issue of issues) {
+      if (issue.source !== oldPath) continue;
+      await this.writeIssueFrontmatter(issue.file, (fm) => {
+        fm.source = newPath;
+      });
+    }
+  }
+
+  /** Cycles open → in progress → closed → open. */
+  async cycleIssueStatus(file: TFile): Promise<IssueStatus> {
+    let result: IssueStatus = 'open';
+    await this.writeIssueFrontmatter(file, (fm) => {
+      result = nextStatus(normalizeStatus(fm.status));
+      fm.status = result;
+    });
+    return result;
   }
 
   async updateIssue(file: TFile, changes: Partial<IssueData>): Promise<void> {
-    const content = await this.app.vault.cachedRead(file);
-    const frontmatter = this.parseFrontmatter(content);
-    const body = this.extractBody(content);
-    const merged = { ...frontmatter, ...changes };
-    const yaml = this.serializeFrontmatter(merged);
-    await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+    await this.writeIssueFrontmatter(file, (fm) => {
+      applyIssueData(fm, changes);
+    });
   }
 
   async linkIssueToNote(notePath: string, issueId: string): Promise<void> {
     const file = this.app.vault.getAbstractFileByPath(notePath);
     if (!(file instanceof TFile)) return;
 
-    const content = await this.app.vault.cachedRead(file);
-    const frontmatter = this.parseFrontmatter(content);
-    const existing = this.toStringArrayValue(frontmatter[ISSUES_FRONTMATTER_KEY], []);
-    if (existing.includes(issueId)) return;
+    await this.app.fileManager.processFrontMatter(file, (fm: Frontmatter) => {
+      const existing = toStringArray(fm[ISSUES_FRONTMATTER_KEY]);
+      if (existing.includes(issueId)) return;
+      fm[ISSUES_FRONTMATTER_KEY] = [...existing, issueId];
+    });
+  }
 
-    const body = this.extractBody(content);
-    const yaml = this.serializeFrontmatter(
-      { ...frontmatter, [ISSUES_FRONTMATTER_KEY]: [...existing, issueId] },
-      [ISSUES_FRONTMATTER_KEY],
-    );
-    await this.app.vault.modify(file, this.buildFileContent(yaml, body));
+  /**
+   * All issue writes go through Obsidian's `processFrontMatter`, which parses,
+   * mutates and re-serialises the YAML block itself. The previous hand-rolled
+   * serialiser wrapped every value in double quotes without escaping, so a
+   * title containing `"` produced invalid YAML — the parser then failed
+   * silently and the issue lost every field. `processFrontMatter` also leaves
+   * the note body untouched, so it can't clobber unsaved editor changes the
+   * way a full read-modify-write of the file could.
+   */
+  private async writeIssueFrontmatter(
+    file: TFile,
+    mutate: (fm: Frontmatter) => void,
+  ): Promise<void> {
+    await this.app.fileManager.processFrontMatter(file, (fm: Frontmatter) => {
+      mutate(fm);
+      reorderFrontmatter(fm);
+    });
+    this.invalidate();
   }
 
   private getIssueFiles(): TFile[] {
     return this.app.vault
       .getMarkdownFiles()
-      .filter((file) => file.parent?.path === ISSUES_FOLDER)
+      .filter((file) => file.parent?.path === normalizePath(ISSUES_FOLDER))
       .filter((file) => ISSUE_FILENAME_PATTERN.test(file.basename));
   }
 
@@ -160,27 +286,28 @@ export class IssueService {
   private async readIssue(file: TFile): Promise<Issue> {
     const content = await this.app.vault.cachedRead(file);
     const frontmatter = this.parseFrontmatter(content);
-    const body = this.extractBody(content);
+    const body = extractBody(content);
 
     return {
-      id: this.toStringValue(frontmatter.id, file.basename),
-      title: this.toStringValue(frontmatter.title, file.basename),
-      status: this.toStringValue(frontmatter.status, 'open') as IssueStatus,
-      priority: this.toStringValue(frontmatter.priority, 'medium') as IssuePriority,
-      project: this.toStringValue(frontmatter.project, ''),
-      source: this.toStringValue(frontmatter.source, ''),
-      labels: this.toStringArrayValue(frontmatter.labels, []),
-      due: this.toStringValue(frontmatter.due, ''),
-      created: this.toDateValue(
-        frontmatter.created,
-        new Date().toISOString().slice(0, 10),
+      id: toStringValue(frontmatter.id, file.basename),
+      title: toStringValue(frontmatter.title, file.basename),
+      status: normalizeStatus(frontmatter.status),
+      priority: normalizePriority(frontmatter.priority),
+      project: toStringValue(frontmatter.project, ''),
+      source: toStringValue(frontmatter.source, ''),
+      labels: toStringArray(frontmatter.labels),
+      due: toDateValue(frontmatter.due, ''),
+      // Normalised to ISO so `created` sorts correctly even when a note was
+      // hand-edited to the DD/MM/YYYY display format.
+      created: normalizeCreated(
+        toDateValue(frontmatter.created, new Date().toISOString().slice(0, 10)),
       ),
       body,
       file,
     };
   }
 
-  private parseFrontmatter(content: string): Record<string, unknown> {
+  private parseFrontmatter(content: string): Frontmatter {
     const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
 
     if (match?.[1] === undefined) {
@@ -189,107 +316,96 @@ export class IssueService {
 
     try {
       const parsed: unknown = parseYaml(match[1]);
-      return this.isRecord(parsed) ? parsed : {};
+      return isRecord(parsed) ? parsed : {};
     } catch {
       return {};
     }
   }
+}
 
-  private isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value);
+function isRecord(value: unknown): value is Frontmatter {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function toStringValue(value: unknown, fallback: string): string {
+  if (typeof value === 'string' && value.trim().length > 0) return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return fallback;
+}
+
+function normalizeCreated(value: string): string {
+  const iso = toIsoDate(value);
+  return iso.length > 0 ? iso : value;
+}
+
+/** `parseYaml` turns unquoted ISO dates into `Date` objects. */
+function toDateValue(value: unknown, fallback: string): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return toStringValue(value, fallback);
+}
+
+function toStringArray(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value
+      .filter((item): item is string => typeof item === 'string')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
   }
-
-  private toStringValue(value: unknown, fallback: string): string {
-    return typeof value === 'string' && value.trim().length > 0 ? value : fallback;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    // Tolerate a single scalar where a list is expected.
+    return [value.trim()];
   }
+  return [];
+}
 
-  private toDateValue(value: unknown, fallback: string): string {
-    if (value instanceof Date) return value.toISOString().slice(0, 10);
-    return this.toStringValue(value, fallback);
+function extractBody(content: string): string {
+  const match = content.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/);
+  if (match?.[0] === undefined) {
+    return content;
   }
+  return content.slice(match[0].length);
+}
 
-  private toStringArrayValue(
-    value: unknown,
-    fallback: string[],
-  ): string[] {
-    if (Array.isArray(value)) {
-      return value.filter(
-        (item): item is string =>
-          typeof item === 'string' && item.trim().length > 0,
-      );
-    }
-    return fallback;
+/** Writes a value, or removes the key entirely when the value is empty. */
+function setOrDelete(fm: Frontmatter, key: string, value: string): void {
+  if (value.length === 0) {
+    delete fm[key];
+  } else {
+    fm[key] = value;
   }
+}
 
-  private serializeFrontmatter(
-    data: Record<string, unknown>,
-    flowKeys: string[] = [],
-  ): string {
-    const lines: string[] = [];
-
-    for (const key of FRONTMATTER_FIELD_ORDER) {
-      const value = data[key];
-      if (value === undefined || value === null) {
-        continue;
-      }
-      lines.push(...this.serializeValue(key, value, flowKeys.includes(key)));
+function applyIssueData(fm: Frontmatter, data: Partial<IssueData>): void {
+  if (data.title !== undefined) fm.title = data.title;
+  if (data.status !== undefined) fm.status = normalizeStatus(data.status);
+  if (data.priority !== undefined) fm.priority = normalizePriority(data.priority);
+  if (data.project !== undefined) setOrDelete(fm, 'project', data.project.trim());
+  if (data.source !== undefined) setOrDelete(fm, 'source', data.source.trim());
+  if (data.due !== undefined) setOrDelete(fm, 'due', toDisplayDate(data.due));
+  if (data.created !== undefined) setOrDelete(fm, 'created', data.created);
+  if (data.labels !== undefined) {
+    const labels = toStringArray(data.labels);
+    if (labels.length === 0) {
+      delete fm.labels;
+    } else {
+      fm.labels = labels;
     }
-
-    for (const [key, value] of Object.entries(data)) {
-      if (FRONTMATTER_FIELD_ORDER.includes(key)) {
-        continue;
-      }
-      if (value === undefined || value === null) {
-        continue;
-      }
-      lines.push(...this.serializeValue(key, value, flowKeys.includes(key)));
-    }
-
-    return lines.join('\n');
   }
+}
 
-  private serializeValue(
-    key: string,
-    value: unknown,
-    flow = false,
-  ): string[] {
-    if (Array.isArray(value)) {
-      if (value.length === 0) {
-        return [`${key}: []`];
-      }
-      const items = value.filter(
-        (item): item is string =>
-          typeof item === 'string' && item.trim().length > 0,
-      );
-      if (items.length === 0) {
-        return [`${key}: []`];
-      }
-      if (flow) {
-        return [`${key}: [${items.join(', ')}]`];
-      }
-      return [`${key}:`, ...items.map((item) => `  - ${item}`)];
-    }
-    if (value instanceof Date) {
-      return [`${key}: ${value.toISOString().slice(0, 10)}`];
-    }
-    if (typeof value === 'string') {
-      return [`${key}: ${value}`];
-    }
-    if (typeof value === 'number' || typeof value === 'boolean') {
-      return [`${key}: ${value}`];
-    }
-    return [`${key}: ${String(value)}`];
+/**
+ * Rewrites the object's keys in canonical order. Only applied to issue files —
+ * reordering a user's own note frontmatter would be intrusive.
+ */
+function reorderFrontmatter(fm: Frontmatter): void {
+  const snapshot: Frontmatter = { ...fm };
+  for (const key of Object.keys(fm)) {
+    delete fm[key];
   }
-
-  private extractBody(content: string): string {
-    const match = content.match(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/);
-    if (match?.[0] === undefined) {
-      return content;
-    }
-    return content.slice(match[0].length);
+  for (const key of FRONTMATTER_FIELD_ORDER) {
+    if (key in snapshot) fm[key] = snapshot[key];
   }
-
-  private buildFileContent(yaml: string, body: string): string {
-    return `---\n${yaml}\n---\n${body}`;
+  for (const [key, value] of Object.entries(snapshot)) {
+    if (!(key in fm)) fm[key] = value;
   }
 }

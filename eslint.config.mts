@@ -8,8 +8,13 @@ export default defineConfig(
 		'dist',
 		'esbuild.config.mjs',
 		'version-bump.mjs',
+		'tools',
 		'versions.json',
 		'main.js',
+		'main.js.full-backup',
+		// Node test files are outside the plugin's tsconfig `include`, so the
+		// type-aware rules have no project to resolve them against.
+		'tests',
 		'package.json',
 		'package-lock.json',
 		'tsconfig.json',

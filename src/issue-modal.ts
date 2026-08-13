@@ -5,25 +5,15 @@ import {
   Notice,
   TextComponent,
 } from 'obsidian';
-import { ISSUE_PRIORITIES, ISSUE_PRIORITY_LABELS, ISSUE_STATUSES } from './constants';
+import {
+  ISSUE_PRIORITIES,
+  ISSUE_PRIORITY_LABELS,
+  ISSUE_STATUSES,
+  ISSUE_STATUS_LABELS,
+} from './constants';
+import { isValidDate, toDisplayDate, toIsoDate } from './dates';
 import { TagInput } from './tag-input';
 import type { IssueData, IssuePriority, IssueStatus } from './types';
-
-function toEuropeanDate(value: string): string {
-  if (!value) return '';
-  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-  return value;
-}
-
-function toInputDate(value: string): string {
-  if (!value) return '';
-  const euMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (euMatch) return value;
-  const isoMatch = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (isoMatch) return `${isoMatch[3]}/${isoMatch[2]}/${isoMatch[1]}`;
-  return value;
-}
 
 export interface IssueModalOptions {
   title: string;
@@ -41,7 +31,9 @@ export class IssueModal extends Modal {
   private priorityDropdown!: DropdownComponent;
   private projectInput!: TextComponent;
   private tagInput!: TagInput;
-  private dueInput!: TextComponent;
+  private dueInput!: HTMLInputElement;
+  private submitButton: HTMLButtonElement | null = null;
+  private submitting = false;
 
   constructor(app: App, private options: IssueModalOptions) {
     super(app);
@@ -68,57 +60,63 @@ export class IssueModal extends Modal {
     this.titleInput
       .setPlaceholder('Enter issue title')
       .setValue(this.options.initial.title ?? '');
+    this.titleInput.inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        void this.handleSubmit();
+      }
+    });
 
     if (this.options.statusEditable) {
       const statusRow = form.createDiv({ cls: 'obsidian-issues-field' });
       statusRow.createEl(
         'label',
         { text: 'Status', cls: 'obsidian-issues-field-label' },
+        (label) => {
+          label.htmlFor = 'obsidian-issues-status-input';
+        },
       );
       this.statusDropdown = new DropdownComponent(
         statusRow.createDiv({ cls: 'obsidian-issues-field-input' }),
       );
+      this.statusDropdown.selectEl.id = 'obsidian-issues-status-input';
       for (const status of ISSUE_STATUSES) {
-        this.statusDropdown.addOption(
-          status,
-          status.charAt(0).toUpperCase() + status.slice(1),
-        );
+        this.statusDropdown.addOption(status, ISSUE_STATUS_LABELS[status]);
       }
-      this.statusDropdown.setValue(
-        this.options.initial.status ?? 'open',
-      );
+      this.statusDropdown.setValue(this.options.initial.status ?? 'open');
     }
 
     const priorityRow = form.createDiv({ cls: 'obsidian-issues-field' });
     priorityRow.createEl(
       'label',
       { text: 'Priority', cls: 'obsidian-issues-field-label' },
+      (label) => {
+        label.htmlFor = 'obsidian-issues-priority-input';
+      },
     );
     this.priorityDropdown = new DropdownComponent(
       priorityRow.createDiv({ cls: 'obsidian-issues-field-input' }),
     );
+    this.priorityDropdown.selectEl.id = 'obsidian-issues-priority-input';
     for (const priority of ISSUE_PRIORITIES) {
-      this.priorityDropdown.addOption(
-        priority,
-        ISSUE_PRIORITY_LABELS[priority],
-      );
+      this.priorityDropdown.addOption(priority, ISSUE_PRIORITY_LABELS[priority]);
     }
-    this.priorityDropdown.setValue(
-      this.options.initial.priority ?? 'medium',
-    );
+    this.priorityDropdown.setValue(this.options.initial.priority ?? 'medium');
 
     const projectRow = form.createDiv({ cls: 'obsidian-issues-field' });
     projectRow.createEl(
       'label',
       { text: 'Project', cls: 'obsidian-issues-field-label' },
+      (label) => {
+        label.htmlFor = 'obsidian-issues-project-input';
+      },
     );
     const projectInputEl = projectRow.createDiv({ cls: 'obsidian-issues-field-input' });
     this.projectInput = new TextComponent(projectInputEl);
+    this.projectInput.inputEl.id = 'obsidian-issues-project-input';
     this.projectInput.inputEl.setAttribute('list', 'obsidian-issues-project-list');
     this.projectInput.setPlaceholder('Select or type a project');
-    const dataList = projectInputEl.createEl('datalist', {
-      cls: 'obsidian-issues-project-datalist',
-    });
+    const dataList = projectInputEl.createEl('datalist');
     dataList.id = 'obsidian-issues-project-list';
     for (const project of this.options.knownProjects) {
       if (project.length > 0) {
@@ -145,14 +143,36 @@ export class IssueModal extends Modal {
     dueRow.createEl(
       'label',
       { text: 'Due date', cls: 'obsidian-issues-field-label' },
+      (label) => {
+        label.htmlFor = 'obsidian-issues-due-input';
+      },
     );
-    this.dueInput = new TextComponent(
-      dueRow.createDiv({ cls: 'obsidian-issues-field-input' }),
-    );
-    this.dueInput.inputEl.type = 'text';
-    const dateFormatHint = 'dd/mm/yyyy';
-    this.dueInput.inputEl.setAttribute('placeholder', dateFormatHint);
-    this.dueInput.setValue(toInputDate(this.options.initial.due ?? ''));
+    // A native date picker rather than free text: it can't produce an
+    // unparseable value, and it renders in the user's own locale format.
+    this.dueInput = dueRow
+      .createDiv({ cls: 'obsidian-issues-field-input' })
+      .createEl('input', { type: 'date', cls: 'obsidian-issues-due-input' });
+    this.dueInput.id = 'obsidian-issues-due-input';
+    const initialDue = this.options.initial.due ?? '';
+    this.dueInput.value = toIsoDate(initialDue);
+
+    // A date picker cannot hold an unparseable value, so saving would drop it
+    // without explanation. Say so up front rather than losing it silently.
+    if (initialDue.length > 0 && !isValidDate(initialDue)) {
+      dueRow.createEl('p', {
+        text: `The stored due date “${initialDue}” could not be read and will be replaced when you save.`,
+        cls: 'obsidian-issues-field-warning',
+      });
+    }
+
+    const clearDue = dueRow.createEl('button', {
+      text: 'Clear',
+      cls: 'obsidian-issues-due-clear',
+      type: 'button',
+    });
+    clearDue.addEventListener('click', () => {
+      this.dueInput.value = '';
+    });
 
     this.buildButtons(form);
   }
@@ -162,29 +182,40 @@ export class IssueModal extends Modal {
       cls: 'obsidian-issues-modal-buttons',
     });
 
-    const submitButton = buttons.createEl('button', {
-      text: this.options.submitLabel,
-      cls: 'mod-cta obsidian-issues-modal-submit',
-    });
-
-    submitButton.addEventListener('click', () => {
-      void this.handleSubmit();
-    });
-
     const cancelButton = buttons.createEl('button', {
       text: 'Cancel',
-      cls: 'mod-secondary',
+      type: 'button',
     });
-
     cancelButton.addEventListener('click', () => {
       this.close();
+    });
+
+    this.submitButton = buttons.createEl('button', {
+      text: this.options.submitLabel,
+      cls: 'mod-cta obsidian-issues-modal-submit',
+      type: 'button',
+    });
+    this.submitButton.addEventListener('click', () => {
+      void this.handleSubmit();
     });
   }
 
   private async handleSubmit(): Promise<void> {
+    // Guards against a second click (or Enter) landing while the first submit
+    // is still awaiting, which used to create duplicate issues.
+    if (this.submitting) return;
+
     const title = this.titleInput.getValue().trim();
     if (title.length === 0) {
       new Notice('Title is required');
+      this.titleInput.inputEl.focus();
+      return;
+    }
+
+    const rawDue = this.dueInput.value.trim();
+    if (rawDue.length > 0 && !isValidDate(rawDue)) {
+      new Notice('Due date is not a valid date');
+      this.dueInput.focus();
       return;
     }
 
@@ -197,13 +228,28 @@ export class IssueModal extends Modal {
       project: this.projectInput.getValue().trim(),
       source: this.options.initial.source ?? '',
       labels: this.tagInput.getValue(),
-      due: toEuropeanDate(this.dueInput.getValue()),
+      due: toDisplayDate(rawDue),
       created:
         this.options.initial.created ?? new Date().toISOString().slice(0, 10),
     };
 
-    await this.options.onSubmit(data);
-    this.close();
+    this.setSubmitting(true);
+    try {
+      await this.options.onSubmit(data);
+      this.close();
+    } catch (error) {
+      console.error('Obsidian Issues: failed to save issue', error);
+      new Notice('Could not save issue. Check the developer console.');
+      this.setSubmitting(false);
+    }
+  }
+
+  private setSubmitting(submitting: boolean): void {
+    this.submitting = submitting;
+    if (this.submitButton) {
+      this.submitButton.disabled = submitting;
+      this.submitButton.textContent = submitting ? 'Saving…' : this.options.submitLabel;
+    }
   }
 
   onClose(): void {
