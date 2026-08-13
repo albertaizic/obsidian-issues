@@ -8,7 +8,7 @@ export const VIEW_TYPE_ISSUES = 'obsidian-issues-view';
 // trimmed by the OS, not leading), sorts the folder to the top of an
 // alphabetical file list, and is otherwise a completely normal folder name
 // to both the filesystem and the Vault API.
-export const DEFAULT_ISSUES_FOLDER = 'Issues';
+export const DEFAULT_ISSUES_FOLDER = ' Issues';
 export const DEFAULT_ISSUE_PREFIX = 'ISSUE';
 // Earlier versions stored issues directly in these folders. Both are
 // migrated from automatically on load.
