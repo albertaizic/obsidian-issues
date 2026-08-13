@@ -231,7 +231,7 @@ export class IssuesView extends ItemView {
 
           new IssueModal(this.app, {
             title: 'New issue',
-            initial: {},
+            initial: { priority: this.host.settings.defaultPriority },
             knownLabels,
             knownProjects,
             statusEditable: false,
@@ -1187,6 +1187,6 @@ function toggleInArray<T>(list: T[], value: T): T[] {
 }
 
 function shortIssueId(id: string): string {
-  const match = id.match(/^ISSUE-(\d+)$/);
-  return match && match[1] ? `#${parseInt(match[1], 10)}` : id;
+  const match = id.match(/^[A-Z0-9_]+-(\d+)$/i);
+  return match && match[1] !== undefined ? `#${parseInt(match[1], 10)}` : id;
 }

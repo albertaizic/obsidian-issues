@@ -1,9 +1,19 @@
 import { App, PluginSettingTab, Setting } from 'obsidian';
 import type { Plugin } from 'obsidian';
+import type { IssuePriority } from './types';
+import {
+  DEFAULT_ISSUE_PREFIX,
+  DEFAULT_ISSUES_FOLDER,
+  ISSUE_PRIORITIES,
+  ISSUE_PRIORITY_LABELS,
+} from './constants';
 
 export type IssueViewMode = 'list' | 'kanban';
 
 export interface IssuesSettings {
+  issuesFolder: string;
+  issuePrefix: string;
+  defaultPriority: IssuePriority;
   /** Persisted across restarts — previously this lived in sessionStorage. */
   viewMode: IssueViewMode;
   confirmDelete: boolean;
@@ -12,6 +22,9 @@ export interface IssuesSettings {
 }
 
 export const DEFAULT_SETTINGS: IssuesSettings = {
+  issuesFolder: DEFAULT_ISSUES_FOLDER,
+  issuePrefix: DEFAULT_ISSUE_PREFIX,
+  defaultPriority: 'medium',
   viewMode: 'list',
   confirmDelete: true,
   defaultSortBy: 'created',
@@ -28,9 +41,33 @@ export interface IssuesViewHost {
   saveSettings(): Promise<void>;
 }
 
+/**
+ * Coerces a user-entered folder name: trims whitespace, rejects dot-prefixed
+ * names (Obsidian's Vault API silently ignores folders starting with "."),
+ * and falls back to the default.
+ */
+function normalizeFolder(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_ISSUES_FOLDER;
+  const trimmed = value.trim();
+  if (trimmed.length === 0 || trimmed.startsWith('.')) return DEFAULT_ISSUES_FOLDER;
+  return trimmed;
+}
+
+function normalizePrefix(value: unknown): string {
+  if (typeof value !== 'string') return DEFAULT_ISSUE_PREFIX;
+  const trimmed = value.trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_');
+  if (trimmed.length === 0 || trimmed.startsWith('.')) return DEFAULT_ISSUE_PREFIX;
+  return trimmed;
+}
+
 export function normalizeSettings(raw: unknown): IssuesSettings {
   const data = (typeof raw === 'object' && raw !== null ? raw : {}) as Partial<IssuesSettings>;
   return {
+    issuesFolder: normalizeFolder(data.issuesFolder),
+    issuePrefix: normalizePrefix(data.issuePrefix),
+    defaultPriority: ISSUE_PRIORITIES.includes(data.defaultPriority as IssuePriority)
+      ? (data.defaultPriority as IssuePriority)
+      : 'medium',
     viewMode: data.viewMode === 'kanban' ? 'kanban' : 'list',
     confirmDelete: data.confirmDelete !== false,
     defaultSortBy:
@@ -53,6 +90,55 @@ export class IssuesSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+
+    new Setting(containerEl)
+      .setName('Issues folder')
+      .setDesc('Folder where issue notes are stored. Changing this requires a reload.')
+      .addText((input) => {
+        input
+          .setValue(this.host.settings.issuesFolder)
+          .setPlaceholder('Issues')
+          .onChange(async (value) => {
+            const trimmed = value.trim();
+            this.host.settings.issuesFolder =
+              trimmed.length > 0 && !trimmed.startsWith('.') ? trimmed : DEFAULT_ISSUES_FOLDER;
+            await this.host.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('Issue ID prefix')
+      .setDesc('Prefix for issue filenames, e.g. "issue" produces issue-001')
+      .addText((input) => {
+        input
+          .setValue(this.host.settings.issuePrefix)
+          .setPlaceholder('ISSUE')
+          .onChange(async (value) => {
+            const trimmed = value.trim().toUpperCase().replace(/[^A-Z0-9_]+/g, '_');
+            this.host.settings.issuePrefix =
+              trimmed.length > 0 && !trimmed.startsWith('.') ? trimmed : DEFAULT_ISSUE_PREFIX;
+            await this.host.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName('Default priority')
+      .setDesc('Priority applied to new issues.')
+      .addDropdown((dropdown) => {
+        for (const priority of ISSUE_PRIORITIES) {
+          dropdown.addOption(priority, ISSUE_PRIORITY_LABELS[priority]);
+        }
+        dropdown
+          .setValue(this.host.settings.defaultPriority)
+          .onChange(async (value) => {
+            this.host.settings.defaultPriority = ISSUE_PRIORITIES.includes(
+              value as IssuePriority,
+            )
+              ? (value as IssuePriority)
+              : 'medium';
+            await this.host.saveSettings();
+          });
+      });
 
     new Setting(containerEl)
       .setName('Default view')

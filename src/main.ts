@@ -1,5 +1,5 @@
 import { Notice, Plugin, TFile, normalizePath } from 'obsidian';
-import { ISSUES_FOLDER, VIEW_TYPE_ISSUES } from './constants';
+import { VIEW_TYPE_ISSUES } from './constants';
 import { IssueModal } from './issue-modal';
 import { IssueService } from './issue-service';
 import { IssuesView } from './issues-view';
@@ -19,7 +19,7 @@ export default class ObsidianIssuesPlugin extends Plugin implements IssuesViewHo
   async onload(): Promise<void> {
     this.settings = normalizeSettings(await this.loadData());
 
-    this.issueService = new IssueService(this.app);
+    this.issueService = new IssueService(this.app, this.settings);
     await this.issueService.migrateIssuesFolder();
 
     this.registerView(
@@ -170,7 +170,7 @@ export default class ObsidianIssuesPlugin extends Plugin implements IssuesViewHo
   }
 
   private isIssuesPath(path: string): boolean {
-    const folder = normalizePath(ISSUES_FOLDER);
+    const folder = normalizePath(this.settings.issuesFolder);
     return path === folder || path.startsWith(`${folder}/`);
   }
 

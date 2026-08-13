@@ -2,17 +2,17 @@ import { App, normalizePath, parseYaml, TFile } from 'obsidian';
 import {
   DEFAULT_ISSUE_BODY,
   FRONTMATTER_FIELD_ORDER,
-  ISSUES_FOLDER,
   ISSUES_FOLDER_HIDDEN_LEGACY,
   ISSUES_FOLDER_VISIBLE_LEGACY,
   ISSUES_FRONTMATTER_KEY,
-  ISSUE_FILENAME_PATTERN,
+  buildFilenamePattern,
   nextStatus,
   normalizePriority,
   normalizeStatus,
 } from './constants';
 import { toDisplayDate, toIsoDate } from './dates';
 import type { Issue, IssueData, IssueStatus } from './types';
+import type { IssuesSettings } from './settings';
 
 type Frontmatter = Record<string, unknown>;
 
@@ -33,7 +33,10 @@ export class IssueService {
    */
   private generation = 0;
 
-  constructor(private readonly app: App) {}
+  constructor(
+    private readonly app: App,
+    private readonly settings: IssuesSettings,
+  ) {}
 
   invalidate(): void {
     this.cache = null;
@@ -42,7 +45,7 @@ export class IssueService {
   }
 
   async migrateIssuesFolder(): Promise<void> {
-    const newFolder = normalizePath(ISSUES_FOLDER);
+    const newFolder = normalizePath(this.settings.issuesFolder);
     const adapter = this.app.vault.adapter;
 
     if (!(await adapter.exists(newFolder))) {
@@ -53,13 +56,19 @@ export class IssueService {
       }
     }
 
-    // Both legacy folders are migrated using the same low-level adapter API
-    // (rather than mixing it with the vault's TFile/TFolder API) so the two
-    // passes can't race against the vault's index — e.g. one pass writing a
-    // file the vault doesn't know about yet, which the other pass would then
-    // fail to detect as a conflict.
-    await this.migrateFolderContents(normalizePath(ISSUES_FOLDER_HIDDEN_LEGACY), newFolder);
-    await this.migrateFolderContents(normalizePath(ISSUES_FOLDER_VISIBLE_LEGACY), newFolder);
+    // Migrate from all legacy folder locations to the configured folder.
+    // Legacy folders are never created again — only read from for migration.
+    const legacyFolders = [
+      ISSUES_FOLDER_HIDDEN_LEGACY,
+      ISSUES_FOLDER_VISIBLE_LEGACY,
+      ' Issues', // the v0.5 default folder, with the leading space
+    ];
+    for (const legacy of legacyFolders) {
+      const legacyPath = normalizePath(legacy);
+      if (legacyPath !== newFolder) {
+        await this.migrateFolderContents(legacyPath, newFolder);
+      }
+    }
     this.invalidate();
   }
 
@@ -105,7 +114,7 @@ export class IssueService {
   }
 
   async ensureIssuesFolder(): Promise<void> {
-    const folderPath = normalizePath(ISSUES_FOLDER);
+    const folderPath = normalizePath(this.settings.issuesFolder);
 
     if (this.app.vault.getFolderByPath(folderPath) !== null) {
       return;
@@ -118,7 +127,7 @@ export class IssueService {
     await this.ensureIssuesFolder();
 
     const id = this.getNextIssueId();
-    const path = normalizePath(`${ISSUES_FOLDER}/${id}.md`);
+    const path = normalizePath(`${this.settings.issuesFolder}/${id}.md`);
     const file = await this.app.vault.create(path, DEFAULT_ISSUE_BODY);
 
     await this.writeIssueFrontmatter(file, (fm) => {
@@ -267,20 +276,23 @@ export class IssueService {
   }
 
   private getIssueFiles(): TFile[] {
+    const pattern = buildFilenamePattern(this.settings.issuePrefix);
     return this.app.vault
       .getMarkdownFiles()
-      .filter((file) => file.parent?.path === normalizePath(ISSUES_FOLDER))
-      .filter((file) => ISSUE_FILENAME_PATTERN.test(file.basename));
+      .filter((file) => file.parent?.path === normalizePath(this.settings.issuesFolder))
+      .filter((file) => pattern.test(file.basename));
   }
 
   private getNextIssueId(): string {
+    const pattern = buildFilenamePattern(this.settings.issuePrefix);
+    const prefix = this.settings.issuePrefix;
     const highestNumber = this.getIssueFiles().reduce((highest, file) => {
-      const match = file.basename.match(ISSUE_FILENAME_PATTERN);
+      const match = file.basename.match(pattern);
       const value = match?.[1] === undefined ? 0 : Number.parseInt(match[1], 10);
       return Number.isNaN(value) ? highest : Math.max(highest, value);
     }, 0);
 
-    return `ISSUE-${String(highestNumber + 1).padStart(3, '0')}`;
+    return `${prefix}-${String(highestNumber + 1).padStart(3, '0')}`;
   }
 
   private async readIssue(file: TFile): Promise<Issue> {
