@@ -96,6 +96,76 @@ Introduces a visual workflow for managing issues alongside the existing list vie
 ![Issues Kanban view](screenshots/v0.4-issues-kaban-view.png)
 ![Full view](screenshots/v0.4-full-view.png)
 
+## Milestone: v0.5.0 — Kanban and knowledge-base integration
+
+Introduces a visual workflow for managing issues alongside the existing list view. Connects issues
+directly with the user's Obsidian knowledge base, allowing tasks and project work to reference the
+notes they originated from.
+
+Features:
+
+- **List / Kanban view switching**
+- **Open, In Progress and Closed columns**
+- **Drag-and-drop issue cards**
+- **Moving a card automatically updates Markdown frontmatter**
+- **Status synchronization between Kanban and list views**
+- **Basic dashboard statistics**
+- **Create issue from the currently open note**
+- **Link issues to source notes**
+- **Navigate from an issue to its related note**
+- **Project relationships**
+- **Commands for creating and managing issues from anywhere in Obsidian**
+- **Improved integration with Obsidian's workspace**
+
+Commands added to the Command Palette:
+
+| Command | What it does |
+| --- | --- |
+| `Open issues` | Reveals the issues view in the right sidebar |
+| `Create issue` | Opens the new-issue form from anywhere |
+| `Create issue for current note` | Creates an issue linked to the active note |
+| `Toggle list / Kanban layout` | Switches the issues view between layouts |
+
+An issue created from a note records the note in its `source` field, and the note records the
+issue in its own `issues` list — so the link is navigable in both directions:
+
+```md
+---
+id: ISSUE-007
+title: Rewrite the onboarding section #1
+status: in-progress
+priority: high
+project: Handbook
+source: Notes/Handbook.md
+labels:
+  - docs
+due: 20/08/2026
+created: 2026-08-13
+---
+```
+
+### Reliability and interface work in this release
+
+- Frontmatter is now written through Obsidian's own `processFrontMatter` API. The previous
+  serializer quoted values without escaping them, so an issue whose title contained a `"` produced
+  invalid YAML and silently lost its metadata. Existing issues are read and repaired automatically.
+- Writes no longer rewrite the whole file, so they can't overwrite unsaved changes in an open editor.
+- Deleting an issue asks for confirmation (can be turned off in settings).
+- Due dates use a native date picker and are validated; unreadable values are flagged in the list
+  instead of rendering as `Invalid date`.
+- Due dates are colour-coded by urgency: **red** once overdue, **amber** on the day they are due,
+  muted otherwise. Closing an issue retires the colour — a closed issue is never shown as overdue,
+  since its deadline is history.
+- Unrecognised `status` values fall back to `open` rather than making the issue vanish from the board.
+- The status dot cycles open → in progress → closed instead of discarding the in-progress state.
+- Search covers titles, bodies, labels, projects and issue IDs, and is debounced.
+- Undated issues sort last regardless of sort direction.
+- Vault changes no longer rebuild the toolbar, so the search box keeps focus while you type.
+- Full keyboard support: filter options, status toggles and Kanban cards are all reachable, and
+  `Ctrl`/`Cmd` + `←`/`→` moves a focused card between columns.
+- All colours now come from Obsidian theme variables, so the plugin follows light and dark themes.
+- New settings tab: default layout, default sort order, and delete confirmation.
+
 ## Development setup
 
 Use a separate development vault. A convenient layout is:
@@ -121,18 +191,30 @@ In Obsidian:
 3. Turn off Restricted mode if necessary.
 4. Enable **Obsidian Issues**.
 5. Open the Command Palette and run **Open issues**.
-6. Click **+ New Issue**.
+6. Click **+ New issue**.
 
 You should now have:
 
 ```text
 ObsidianDev/
-├── Issues/
+├──  Issues/
 │   └── ISSUE-001.md
 └── .obsidian/
     └── plugins/
         └── obsidian-issues/
 ```
+
+The issues folder is named `" Issues"` with a leading space so it sorts to the top of the file
+list. Vaults created with v0.1–v0.3 used `Issues/` or `.Issues/`; both are migrated automatically
+on first load.
+
+## Tests
+
+```bash
+npm test
+```
+
+Runs the date-handling unit tests with Node's built-in test runner (requires Node 22+).
 
 ## Production build
 
@@ -141,6 +223,22 @@ npm run build
 ```
 
 The build produces `main.js` in the repository root. Obsidian loads the plugin from `main.js`, `manifest.json`, and `styles.css`.
+
+**Editing the source is not enough — Obsidian only ever runs `main.js`.** After changing anything in
+`src/` or `styles.css`, rebuild and then reload the plugin (disable and re-enable it under
+**Settings → Community plugins**, or run **Reload app without saving**). `npm run dev` watches and
+rebuilds automatically, but the reload is still needed for Obsidian to pick up the new file.
+
+If esbuild refuses to run — for example its installed binary doesn't match the current platform,
+which happens when `node_modules` was installed on a different OS — there is a fallback bundler
+that uses `tsc` instead:
+
+```bash
+npm run build:fallback
+```
+
+It produces a larger, unminified `main.js` with identical behaviour. `npm run build` remains the
+supported path.
 
 ## Screenshots
 
@@ -172,4 +270,5 @@ The build produces `main.js` in the repository root. Obsidian loads the plugin f
 - **v0.2** ~completed — labels, priority, projects, due dates, edit modal
 - **v0.3** ~completed — filters, search
 - **v0.4** ~completed — Kanban/dashboard
-- **v1.0** — polished release, tests, documentation, demo GIF, GitHub release
+- **v0.5** ~completed — note integration, commands, settings, accessibility and reliability pass
+- **v1.0** — polished release, expanded test coverage, documentation, demo GIF, GitHub release
