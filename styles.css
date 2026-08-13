@@ -1,9 +1,27 @@
+/* ==========================================================================
+   Obsidian Issues
+   Colours come from Obsidian's theme variables so the plugin follows the
+   user's light/dark theme. The two values that have no theme equivalent
+   (the "due today" amber and the in-progress hue) are declared once here so
+   themes and snippets can override them.
+   ========================================================================== */
+
 .obsidian-issues-view {
+  --issue-due-today: var(--color-yellow, #d9a300);
+  --issue-in-progress: var(--color-orange, #d97706);
+  /* Tints derived from the theme's own accent colours, so the "due today" and
+     "overdue" chips stay legible in both light and dark themes. */
+  --issue-due-today-bg: hsla(var(--color-yellow-hsl, 48 90% 45%) / 0.14);
+  --issue-overdue-bg: hsla(var(--color-red-hsl, 0 70% 50%) / 0.14);
+  --issue-shadow: 0 4px 12px var(--background-modifier-box-shadow, rgba(0, 0, 0, 0.15));
   padding: var(--size-4-3);
 }
 
+/* --------------------------------------------------------------- header -- */
+
 .obsidian-issues-header {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--size-4-2);
@@ -19,13 +37,73 @@
   white-space: nowrap;
 }
 
+.obsidian-issues-view-toggle {
+  display: inline-flex;
+  border-radius: var(--radius-s);
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-view-toggle-button {
+  padding: 4px 14px;
+  font-size: var(--font-ui-smaller);
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-right: 1px solid var(--background-modifier-border);
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.obsidian-issues-view-toggle-button:last-child {
+  border-right: none;
+}
+
+.obsidian-issues-view-toggle-button.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: var(--font-semibold);
+}
+
+.obsidian-issues-view-toggle-button:hover:not(.is-active) {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* -------------------------------------------------------------- summary -- */
+
 .obsidian-issues-summary {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--size-4-4);
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   margin-bottom: var(--size-4-3);
 }
+
+.obsidian-issues-summary-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--size-4-1);
+}
+
+.obsidian-issues-summary-label {
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.obsidian-issues-summary-label.is-open { color: var(--interactive-accent); }
+.obsidian-issues-summary-label.is-in-progress { color: var(--issue-in-progress); }
+.obsidian-issues-summary-label.is-closed { color: var(--text-muted); }
+
+.obsidian-issues-summary-count {
+  font-weight: var(--font-semibold);
+  color: var(--text-normal);
+}
+
+/* -------------------------------------------------------------- toolbar -- */
 
 .obsidian-issues-toolbar {
   display: flex;
@@ -37,32 +115,11 @@
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
-.obsidian-issues-toolbar .obsidian-issues-label-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--size-4-1);
-  align-items: center;
+.obsidian-issues-search {
+  flex: 1 1 160px;
+  min-width: 120px;
 }
 
-.obsidian-issues-label-filter {
-  cursor: pointer;
-  border: 1px solid var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  padding: 0 var(--size-4-1);
-  font-size: var(--font-ui-smaller);
-  line-height: 1.6;
-  white-space: nowrap;
-  opacity: 0.6;
-  transition: opacity 0.2s ease, border-color 0.2s ease;
-}
-
-.obsidian-issues-label-filter.is-active {
-  opacity: 1;
-  border-color: var(--interactive-accent);
-  border-left-width: 3px;
-}
-
-.obsidian-issues-label-dropdown-wrapper,
 .obsidian-issues-filter-dropdown-wrapper {
   position: relative;
   display: inline-block;
@@ -72,16 +129,17 @@
   cursor: pointer;
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
-  padding: 0 var(--size-4-1);
+  padding: 2px var(--size-4-2);
   font-size: var(--font-ui-smaller);
   line-height: 1.6;
   white-space: nowrap;
   background: transparent;
+  box-shadow: none;
   color: var(--text-muted);
   display: inline-flex;
   align-items: center;
   gap: var(--size-4-1);
-  transition: border-color 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
 }
 
 .obsidian-issues-label-dropdown:hover {
@@ -89,28 +147,67 @@
   color: var(--text-normal);
 }
 
+.obsidian-issues-label-dropdown.is-filtering {
+  border-color: var(--interactive-accent);
+  color: var(--text-normal);
+}
+
 .obsidian-issues-label-dropdown-panel {
   position: absolute;
   top: 100%;
   left: 0;
-  z-index: 1000;
+  z-index: var(--layer-menu, 1000);
+  min-width: 160px;
+  max-width: 260px;
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
-  padding: var(--size-4-1);
+  padding: var(--size-4-2);
   margin-top: 4px;
   display: flex;
   flex-wrap: wrap;
   gap: var(--size-4-1);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--issue-shadow);
 }
 
 .obsidian-issues-label-dropdown-panel.is-hidden {
   display: none;
 }
 
-.obsidian-issues-clear-all {
+.obsidian-issues-label-dropdown-panel.is-flipped {
+  left: auto;
+  right: 0;
+}
+
+.obsidian-issues-label-filter {
+  cursor: pointer;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.7;
+  height: auto;
   white-space: nowrap;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  box-shadow: none;
+  opacity: 0.75;
+  transition: opacity 0.15s ease, border-color 0.15s ease;
+}
+
+.obsidian-issues-label-filter.is-colored {
+  background: var(--issue-label-bg, var(--background-secondary));
+  color: var(--issue-label-fg, var(--text-muted));
+}
+
+.obsidian-issues-label-filter:hover {
+  opacity: 1;
+}
+
+.obsidian-issues-label-filter.is-active {
+  opacity: 1;
+  border-color: var(--interactive-accent);
+  box-shadow: inset 3px 0 0 0 var(--interactive-accent);
 }
 
 .obsidian-issues-clear-divider {
@@ -122,14 +219,30 @@
 
 .obsidian-issues-clear-labels {
   width: 100%;
-  margin-top: var(--size-4-1);
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
-  border-top: 1px solid var(--background-modifier-border);
+  background: transparent;
+  box-shadow: none;
 }
 
+.obsidian-issues-clear-all {
+  white-space: nowrap;
+  font-size: var(--font-ui-smaller);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-clear-all:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
+
+/* ----------------------------------------------------------- list rows -- */
+
 .obsidian-issues-content {
-  transition: opacity 0.2s ease;
+  transition: opacity 0.15s ease;
 }
 
 .obsidian-issues-list {
@@ -142,75 +255,126 @@
   border-radius: var(--radius-s);
   padding: var(--size-4-2);
   cursor: pointer;
+  border-left: 2px solid transparent;
 }
 
 .obsidian-issues-row:hover,
-.obsidian-issues-row:focus-visible {
+.obsidian-issues-row:focus-within {
   background: var(--background-modifier-hover);
-  outline: none;
 }
 
-.obsidian-issues-row.is-closed .obsidian-issues-title {
-  text-decoration: line-through;
-}
-
-.obsidian-issues-row.is-closed {
+.obsidian-issues-row.is-status-closed {
   opacity: 0.6;
 }
 
-.obsidian-issues-row.is-closed .obsidian-issues-delete-button {
-  opacity: 1;
+.obsidian-issues-row.is-status-closed .obsidian-issues-title {
+  text-decoration: line-through;
 }
 
-.obsidian-issues-row.is-overdue .obsidian-issues-due {
-  color: var(--text-error);
-  font-weight: var(--font-semibold);
+.obsidian-issues-row.is-overdue {
+  border-left-color: var(--text-error);
+}
+
+.obsidian-issues-row.is-due-today {
+  border-left-color: var(--issue-due-today);
 }
 
 .obsidian-issues-row-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   gap: var(--size-4-2);
 }
 
 .obsidian-issues-status-dot {
-  color: var(--interactive-accent);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  height: auto;
   line-height: 1.4;
   cursor: pointer;
+  flex-shrink: 0;
+  color: var(--interactive-accent);
 }
 
 .obsidian-issues-status-dot:hover {
   opacity: 0.7;
+  background: transparent;
 }
 
-.obsidian-issues-status-dot.is-closed {
-  color: var(--text-muted);
+.obsidian-issues-status-dot.is-closed { color: var(--text-muted); }
+.obsidian-issues-status-dot.is-in-progress { color: var(--issue-in-progress); }
+
+.obsidian-issues-title {
+  font-weight: var(--font-medium);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+  flex: 1;
+  min-width: 120px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 6px;
+  height: auto;
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
 }
 
-.obsidian-issues-status-dot.is-in-progress {
-  color: hsl(30, 100%, 50%);
+.obsidian-issues-title:hover {
+  background: transparent;
+  color: var(--text-accent);
 }
 
-.obsidian-issues-row-buttons {
+.obsidian-issues-row-buttons,
+.obsidian-issues-card-buttons {
   margin-left: auto;
   display: flex;
-  gap: var(--size-4-2);
+  gap: var(--size-4-1);
+  flex-shrink: 0;
 }
 
+/* Action buttons stay out of the way until the row is hovered or a child of
+   it has keyboard focus, which keeps long lists calm. */
 .obsidian-issues-edit-button,
 .obsidian-issues-delete-button {
   padding: 0 var(--size-4-1);
   display: flex;
   align-items: center;
+  background: transparent;
+  box-shadow: none;
+  opacity: 0;
+  transition: opacity 0.15s ease;
 }
 
-.obsidian-issues-title {
-  font-weight: var(--font-medium);
-  overflow-wrap: anywhere;
+.obsidian-issues-row:hover .obsidian-issues-edit-button,
+.obsidian-issues-row:hover .obsidian-issues-delete-button,
+.obsidian-issues-row:focus-within .obsidian-issues-edit-button,
+.obsidian-issues-row:focus-within .obsidian-issues-delete-button,
+.obsidian-issues-kanban-card:hover .obsidian-issues-edit-button,
+.obsidian-issues-kanban-card:hover .obsidian-issues-delete-button,
+.obsidian-issues-kanban-card:focus-within .obsidian-issues-edit-button,
+.obsidian-issues-kanban-card:focus-within .obsidian-issues-delete-button,
+.obsidian-issues-edit-button:focus-visible,
+.obsidian-issues-delete-button:focus-visible {
+  opacity: 1;
+}
+
+/* Hover-reveal is meaningless without a pointer — on touch, always show them. */
+@media (hover: none) {
+  .obsidian-issues-edit-button,
+  .obsidian-issues-delete-button {
+    opacity: 1;
+  }
 }
 
 .obsidian-issues-meta {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: var(--size-4-2);
   margin-top: var(--size-4-1);
   margin-left: 1.4em;
@@ -218,9 +382,10 @@
   font-size: var(--font-ui-smaller);
 }
 
-.obsidian-issues-empty {
-  color: var(--text-muted);
-  padding: var(--size-4-3) 0;
+.obsidian-issues-issue-id {
+  color: var(--text-faint);
+  font-weight: var(--font-normal);
+  flex-shrink: 0;
 }
 
 .obsidian-issues-priority {
@@ -228,11 +393,12 @@
   font-size: var(--font-ui-smaller);
   text-transform: uppercase;
   color: var(--text-muted);
+  flex-shrink: 0;
 }
 
-.obsidian-issues-priority.is-low { color: var(--text-success); }
-.obsidian-issues-priority.is-medium { color: var(--text-warning); }
-.obsidian-issues-priority.is-high { color: hsl(30, 100%, 50%); }
+.obsidian-issues-priority.is-low { color: var(--text-muted); }
+.obsidian-issues-priority.is-medium { color: var(--text-accent); }
+.obsidian-issues-priority.is-high { color: var(--issue-in-progress); }
 .obsidian-issues-priority.is-critical { color: var(--text-error); }
 
 .obsidian-issues-labels {
@@ -242,28 +408,270 @@
 }
 
 .obsidian-issues-label {
-  background: var(--background-secondary);
+  background: var(--issue-label-bg, var(--background-secondary));
+  color: var(--issue-label-fg, var(--text-muted));
   border-radius: var(--radius-s);
   padding: 0 var(--size-4-1);
   font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
   line-height: 1.6;
   white-space: nowrap;
 }
 
+/* Due-date urgency. `is-done` is used for closed issues whatever their date:
+   a deadline that has already been met shouldn't read as an alarm. */
 .obsidian-issues-due {
-  color: var(--text-warning);
+  border-radius: var(--radius-s);
+  padding: 0 var(--size-4-1);
+  white-space: nowrap;
+}
+
+.obsidian-issues-due.is-future,
+.obsidian-issues-due.is-done {
+  color: var(--text-muted);
+}
+
+.obsidian-issues-due.is-done {
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+
+.obsidian-issues-due.is-today {
+  color: var(--issue-due-today);
+  background: var(--issue-due-today-bg);
+  font-weight: var(--font-semibold);
+}
+
+.obsidian-issues-due.is-overdue {
+  color: var(--text-error);
+  background: var(--issue-overdue-bg);
+  font-weight: var(--font-semibold);
+}
+
+.obsidian-issues-due.is-invalid {
+  color: var(--text-error);
+  font-style: italic;
+  cursor: help;
 }
 
 .obsidian-issues-source-link {
-  color: var(--interactive-accent);
+  color: var(--text-accent);
   text-decoration: none;
   cursor: pointer;
+}
+
+.obsidian-issues-source-link::before {
+  content: '↗ ';
+  opacity: 0.7;
 }
 
 .obsidian-issues-source-link:hover {
   text-decoration: underline;
 }
+
+.obsidian-issues-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--size-4-2);
+  color: var(--text-muted);
+  padding: var(--size-4-4) 0;
+}
+
+.obsidian-issues-empty-reset {
+  font-size: var(--font-ui-smaller);
+}
+
+/* --------------------------------------------------------------- kanban -- */
+
+/* The board is a single vertical column; each status group takes full width
+   so the cards read as one list with headers marking the status boundaries. */
+.obsidian-issues-kanban {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-2);
+}
+
+.obsidian-issues-kanban-column {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  background: var(--background-secondary);
+  border-radius: var(--radius-s);
+  overflow: hidden;
+}
+
+.obsidian-issues-kanban-column.is-drag-over {
+  outline: 2px dashed var(--interactive-accent);
+  outline-offset: -2px;
+}
+
+.obsidian-issues-kanban-column-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--size-4-1);
+  padding: var(--size-4-2);
+  font-size: var(--font-ui-smaller);
+  font-weight: var(--font-semibold);
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-kanban-column-title.is-open { color: var(--interactive-accent); }
+.obsidian-issues-kanban-column-title.is-in-progress { color: var(--issue-in-progress); }
+.obsidian-issues-kanban-column-title.is-closed { color: var(--text-muted); }
+
+.obsidian-issues-kanban-column-count {
+  background: var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  padding: 0 6px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.obsidian-issues-kanban-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+  padding: var(--size-4-2);
+}
+
+.obsidian-issues-kanban-column-empty {
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  text-align: center;
+  padding: var(--size-4-3) 0;
+  border: 1px dashed var(--background-modifier-border);
+  border-radius: var(--radius-s);
+}
+
+.obsidian-issues-kanban-card {
+  background: var(--background-primary);
+  border-radius: var(--radius-s);
+  padding: var(--size-4-2);
+  cursor: grab;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-issues-kanban-card:hover,
+.obsidian-issues-kanban-card:focus-visible {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.obsidian-issues-kanban-card.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+
+.obsidian-issues-kanban-card-top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-1);
+}
+
+.obsidian-issues-kanban-card-id {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  font-weight: var(--font-normal);
+  flex-shrink: 0;
+}
+
+.obsidian-issues-kanban-card-title {
+  font-weight: var(--font-medium);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  text-align: left;
+  flex: 1;
+  min-width: 80px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 4px 6px;
+  height: auto;
+  color: var(--text-normal);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+}
+
+.obsidian-issues-kanban-card-title:hover {
+  background: transparent;
+  color: var(--text-accent);
+}
+
+.obsidian-issues-kanban-column-body .obsidian-issues-kanban-card.is-status-closed
+  .obsidian-issues-kanban-card-title {
+  text-decoration: line-through;
+}
+
+.obsidian-issues-kanban-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--size-4-1) var(--size-4-2);
+  margin-top: var(--size-4-1);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+/* ---------------------------------------------------------------- forms -- */
+
+.obsidian-issues-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-3);
+}
+
+.obsidian-issues-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--size-4-1);
+}
+
+.obsidian-issues-field-label {
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.obsidian-issues-field-input input[type='text'],
+.obsidian-issues-field-input select {
+  width: 100%;
+}
+
+.obsidian-issues-due-input {
+  width: 100%;
+}
+
+.obsidian-issues-due-clear {
+  align-self: flex-start;
+  margin-top: var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+  padding: 4px 8px;
+}
+
+.obsidian-issues-field-warning {
+  margin: var(--size-4-1) 0 0;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-error);
+}
+
+.obsidian-issues-confirm-message {
+  margin: 0 0 var(--size-4-3);
+  color: var(--text-normal);
+}
+
+.obsidian-issues-modal-buttons {
+  display: flex;
+  gap: var(--size-4-2);
+  justify-content: flex-end;
+  margin-top: var(--size-4-2);
+}
+
+/* ------------------------------------------------------------ tag input -- */
 
 .obsidian-issues-tag-input {
   position: relative;
@@ -274,7 +682,15 @@
   flex-wrap: wrap;
   gap: var(--size-4-1);
   align-items: center;
-  min-height: 1.6em;
+  min-height: 2em;
+  padding: 2px var(--size-4-1);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: var(--radius-s);
+  background: var(--background-modifier-form-field);
+}
+
+.obsidian-issues-tag-input-tags:focus-within {
+  border-color: var(--interactive-accent);
 }
 
 .obsidian-issues-tag-input-field {
@@ -288,7 +704,7 @@
 }
 
 .obsidian-issues-tag-input-field::placeholder {
-  color: var(--text-muted);
+  color: var(--text-faint);
 }
 
 .obsidian-issues-tag {
@@ -300,28 +716,52 @@
   font-size: var(--font-ui-smaller);
   line-height: 1.6;
   white-space: nowrap;
+  background: var(--issue-label-bg, var(--background-secondary));
+  color: var(--issue-label-fg, var(--text-muted));
 }
 
+/* `currentColor` keeps the remove button legible on both light and dark
+   label colours — a fixed white wash disappeared on the lighter ones. */
 .obsidian-issues-tag-remove {
-  background: rgba(255, 255, 255, 0.3);
+  background: transparent;
+  border: 1px solid currentColor;
+  color: inherit;
+  opacity: 0.65;
   border-radius: 50%;
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border: none;
   cursor: pointer;
   padding: 0;
+  box-shadow: none;
   line-height: 1;
+}
+
+.obsidian-issues-tag-remove:hover {
+  opacity: 1;
+  background: transparent;
+}
+
+.obsidian-issues-tag-remove .svg-icon {
+  width: 11px;
+  height: 11px;
 }
 
 .obsidian-issues-tag-input-suggestions {
   position: fixed;
-  z-index: 1000;
+  left: var(--suggestions-left, 0);
+  top: var(--suggestions-top, 0);
+  z-index: var(--layer-menu, 1000);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--size-4-1);
   background: var(--background-primary);
   border: 1px solid var(--background-modifier-border);
   border-radius: var(--radius-s);
+  box-shadow: var(--issue-shadow);
   max-height: 200px;
   overflow-y: auto;
   max-width: calc(100vw - 2rem);
@@ -337,168 +777,27 @@
   font-size: var(--font-ui-smaller);
   border-radius: var(--radius-s);
   white-space: nowrap;
+  background: var(--issue-label-bg, var(--background-secondary));
+  color: var(--issue-label-fg, var(--text-muted));
+  opacity: 0.85;
 }
 
 .obsidian-issues-tag-input-suggestion:hover,
 .obsidian-issues-tag-input-suggestion.is-active {
-  opacity: 0.7;
-}
-
-.obsidian-issues-form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-4-2);
-}
-
-.obsidian-issues-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-4-1);
-}
-
-.obsidian-issues-field-label {
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-}
-
-.obsidian-issues-modal-buttons {
-  display: flex;
-  gap: var(--size-4-2);
-  justify-content: flex-end;
-}
-
-.obsidian-issues-view-toggle {
-  display: inline-flex;
-  border-radius: var(--radius-s);
-  overflow: hidden;
-  border: 1px solid var(--background-modifier-border);
-  margin-right: var(--size-4-2);
-}
-
-.obsidian-issues-view-toggle-button {
-  padding: 6px 16px;
-  font-size: var(--font-ui-smaller);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text-muted);
-  border-right: 1px solid var(--background-modifier-border);
-  transition: background-color 0.2s ease, color 0.2s ease;
-}
-
-.obsidian-issues-view-toggle-button:last-child {
-  border-right: none;
-}
-
-.obsidian-issues-view-toggle-button.is-active {
-  background: var(--interactive-accent);
-  color: var(--text-on-accent, #ffffff);
-  font-weight: var(--font-semibold);
-  border-bottom: 2px solid var(--interactive-accent);
-}
-
-.obsidian-issues-view-toggle-button:hover:not(.is-active) {
-  background: var(--background-modifier-hover);
-  color: var(--text-normal);
-}
-
-.obsidian-issues-kanban {
-  display: flex;
-  gap: var(--size-4-2);
-  overflow-x: auto;
-  padding-bottom: var(--size-4-2);
-}
-
-.obsidian-issues-kanban-column {
-  display: flex;
-  flex-direction: column;
-  flex: 0 0 300px;
-  background: var(--background-secondary);
-  border-radius: var(--radius-s);
-  overflow: hidden;
-}
-
-.obsidian-issues-kanban-column.is-drag-over {
-  background: var(--background-modifier-hover);
-}
-
-.obsidian-issues-kanban-column-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--size-4-2);
-  font-size: var(--font-ui-smaller);
-  font-weight: var(--font-semibold);
-  color: var(--text-muted);
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-
-.obsidian-issues-kanban-column-count {
-  background: var(--background-modifier-border);
-  border-radius: var(--radius-s);
-  padding: 0 6px;
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-}
-
-.obsidian-issues-kanban-column-body {
-  display: flex;
-  flex-direction: column;
-  gap: var(--size-4-1);
-  padding: var(--size-4-2);
-  overflow-y: auto;
-}
-
-.obsidian-issues-kanban-card {
-  background: var(--background-primary);
-  border-radius: var(--radius-s);
-  padding: var(--size-4-2);
-  cursor: grab;
-  border: 1px solid var(--background-modifier-border);
-}
-
-.obsidian-issues-kanban-card:is-dragging {
-  opacity: 0.5;
-}
-
-.obsidian-issues-kanban-card:hover {
-  border-color: var(--interactive-accent);
-}
-
-.obsidian-issues-kanban-card-id {
-  font-size: var(--font-ui-smaller);
-  color: var(--text-muted);
-  opacity: 0.35;
-  font-weight: var(--font-normal);
-}
-
-.obsidian-issues-kanban-card-top {
-  display: flex;
-  align-items: center;
-  gap: var(--size-4-1);
-}
-
-.obsidian-issues-kanban-card-title {
-  font-weight: var(--font-medium);
-  margin: 4px 0;
-  overflow-wrap: anywhere;
-  flex: 1;
-}
-
-.obsidian-issues-kanban-card-delete {
-  opacity: 0.5;
-  padding: 0 var(--size-4-1);
-  display: flex;
-  align-items: center;
-}
-
-.obsidian-issues-kanban-card:hover .obsidian-issues-kanban-card-delete {
   opacity: 1;
+  box-shadow: inset 3px 0 0 0 var(--interactive-accent);
 }
 
-.obsidian-issues-kanban-card-meta {
-  display: flex;
-  gap: var(--size-4-2);
-  margin-top: var(--size-4-1);
-  font-size: var(--font-ui-smaller);
+/* ---------------------------------------------------------- narrow view -- */
+
+@media (max-width: 520px) {
+  .obsidian-issues-view {
+    padding: var(--size-4-2);
+  }
+
+  .obsidian-issues-header,
+  .obsidian-issues-toolbar {
+    gap: var(--size-4-1);
+  }
+
 }

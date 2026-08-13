@@ -2,6 +2,31 @@
 
 A GitHub Issues-inspired issue tracker for Obsidian. Issues are stored as normal Markdown files, so your data remains readable and useful even without the plugin.
 
+## Why
+
+This plugin exists because Obsidian has no built-in task tracker with the workflow affordances of GitHub Issues — status cycling, labels, priorities, due dates, drag-and-drop Kanban, and bidirectional linking to your notes. It was built as a hackable, self-contained alternative to external tools so the workflow stays inside your vault. The codebase is intentionally kept dependency-free and easy to modify: issue data is plain YAML frontmatter in Markdown files, so you can fix, extend, or inspect issues with nothing more than a text editor.
+
+It also serves as a vehicle for working through a larger TypeScript/Obsidian plugin project end-to-end — from initial scaffolding to filtering, search, Kanban, and a settings UI.
+
+## Project structure
+
+```
+src/
+  main.ts            Plugin entry point, lifecycle, commands, vault event wiring
+  issue-service.ts   Reads, writes, caches, and migrates issue files
+  issues-view.ts     The sidebar view: list and Kanban rendering
+  issue-modal.ts     New/edit issue form with tag-input labels
+  tag-input.ts       Reusable tag-input component for labels
+  labels.ts          Label colour assignment
+  dates.ts           Date parsing, formatting, and comparison helpers
+  constants.ts       Status/priority enums, field order, folder name
+  types.ts           Issue, IssueData, IssueStatus, IssuePriority types
+  settings.ts        Settings interface, defaults, settings tab
+  confirm-modal.ts   Reusable confirmation dialog
+```
+
+`styles.css` is loaded by Obsidian alongside `main.js` and `manifest.json`. Source in `src/ts` is bundled with esbuild into `main.js` at the plugin root.
+
 ## Milestone: v0.1 — starter
 
 This first milestone supports:
@@ -83,7 +108,7 @@ Date format updated to day/month/year (e.g. `10/08/2026`).
 
 ## Milestone: v0.4.0 — Kanban
 
-Introduces a visual workflow for managing issues alongside the existing list view.
+Introduces a visual Kanban board alongside the existing list view.
 
 - **List / Kanban view switching**
 - **Open, In Progress and Closed columns**
@@ -98,14 +123,13 @@ Introduces a visual workflow for managing issues alongside the existing list vie
 
 ## Milestone: v0.5.0 — Kanban and knowledge-base integration
 
-Introduces a visual workflow for managing issues alongside the existing list view. Connects issues
-directly with the user's Obsidian knowledge base, allowing tasks and project work to reference the
-notes they originated from.
+Adds deep integration with the user's Obsidian knowledge base, allowing tasks and project work to
+reference the notes they originated from.
 
 Features:
 
 - **List / Kanban view switching**
-- **Open, In Progress and Closed columns**
+- **Single-column Kanban with status group separation**
 - **Drag-and-drop issue cards**
 - **Moving a card automatically updates Markdown frontmatter**
 - **Status synchronization between Kanban and list views**
@@ -144,6 +168,10 @@ created: 2026-08-13
 ---
 ```
 
+![Issues sidebar with single-column Kanban](screenshots/v0.5-issues-sidebar.png)
+![Single-column Kanban view](screenshots/v0.5-issues-kanban-view.png)
+![Edit issue modal](screenshots/v0.5-edit-issue.png)
+
 ### Reliability and interface work in this release
 
 - Frontmatter is now written through Obsidian's own `processFrontMatter` API. The previous
@@ -162,7 +190,7 @@ created: 2026-08-13
 - Undated issues sort last regardless of sort direction.
 - Vault changes no longer rebuild the toolbar, so the search box keeps focus while you type.
 - Full keyboard support: filter options, status toggles and Kanban cards are all reachable, and
-  `Ctrl`/`Cmd` + `←`/`→` moves a focused card between columns.
+  `Ctrl`/`Cmd` + `←`/`→` cycles a focused issue's status (open → in progress → closed).
 - All colours now come from Obsidian theme variables, so the plugin follows light and dark themes.
 - New settings tab: default layout, default sort order, and delete confirmation.
 
@@ -242,6 +270,12 @@ supported path.
 
 ## Screenshots
 
+### v0.5.0
+
+![Issues sidebar](screenshots/v0.5-issues-sidebar.png)
+![Single-column Kanban view](screenshots/v0.5-issues-kanban-view.png)
+![Edit issue modal](screenshots/v0.5-edit-issue.png)
+
 ### v0.4.0
 
 ![Issues Kanban view](screenshots/v0.4-issues-kaban-view.png)
@@ -270,5 +304,6 @@ supported path.
 - **v0.2** ~completed — labels, priority, projects, due dates, edit modal
 - **v0.3** ~completed — filters, search
 - **v0.4** ~completed — Kanban/dashboard
+- **v0.5** ~completed — Kanban and knowledge-base integration
 - **v0.5** ~completed — note integration, commands, settings, accessibility and reliability pass
 - **v1.0** — polished release, expanded test coverage, documentation, demo GIF, GitHub release

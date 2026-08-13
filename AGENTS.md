@@ -42,22 +42,21 @@ npm run build
 ## File & folder conventions
 
 - **Organize code into multiple files**: Split functionality across separate modules rather than putting everything in `main.ts`.
-- Source lives in `src/`. Keep `main.ts` small and focused on plugin lifecycle (loading, unloading, registering commands).
-- **Example file structure**:
+- Source lives in `src/`. Keep `main.ts` small and focused on plugin lifecycle (loading, unmarshalling, registering commands).
+- **Actual file structure** (adapted from the generic template above):
     ```
     src/
-      main.ts           # Plugin entry point, lifecycle management
-      settings.ts       # Settings interface and defaults
-      commands/         # Command implementations
-        command1.ts
-        command2.ts
-      ui/              # UI components, modals, views
-        modal.ts
-        view.ts
-      utils/           # Utility functions, helpers
-        helpers.ts
-        constants.ts
-      types.ts         # TypeScript interfaces and types
+      main.ts            # Plugin entry point, lifecycle, commands, vault event wiring
+      issue-service.ts   # Reads, writes, caches, and migrates issue files
+      issues-view.ts     # The sidebar view: list and single-column Kanban rendering
+      issue-modal.ts     # New/edit issue form with tag-input labels
+      tag-input.ts       # Reusable tag-input component for labels
+      labels.ts          # Label colour assignment
+      dates.ts           # Date parsing, formatting, and comparison helpers
+      constants.ts       # Status/priority enums, field order, folder name
+      types.ts           # Issue, IssueData, IssueStatus, IssuePriority types
+      settings.ts        # Settings interface, defaults, settings tab
+      confirm-modal.ts   # Reusable confirmation dialog
     ```
 - **Do not commit build artifacts**: Never commit `node_modules/`, `main.js`, or other generated files to version control.
 - Keep the plugin small. Avoid large dependencies. Prefer browser-compatible packages.

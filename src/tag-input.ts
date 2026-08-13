@@ -1,5 +1,5 @@
 import { setIcon } from 'obsidian';
-import { getLabelColor, getLabelTextColor } from './labels';
+import { applyLabelColor } from './labels';
 
 export interface TagInputProps {
   value: readonly string[];
@@ -25,6 +25,27 @@ export class TagInput {
     }
   };
 
+  /**
+   * `mousedown` on a suggestion is prevented, so a blur here always means the
+   * user moved focus somewhere else entirely — previously the floating list
+   * stayed on screen after that.
+   */
+  private readonly handleBlur = (): void => {
+    this.hideSuggestions();
+  };
+
+  /**
+   * Blur alone isn't enough: clicking a non-focusable part of the modal (a
+   * field label, the padding, the dialog background) never moves focus, so no
+   * blur fires and the list used to hang around over the form.
+   */
+  private readonly handleOutsidePointerDown = (e: Event): void => {
+    if (this.suggestionsEl.classList.contains('is-hidden')) return;
+    const target = e.target;
+    if (target instanceof Node && this.containerEl.contains(target)) return;
+    this.hideSuggestions();
+  };
+
   constructor(containerEl: HTMLElement, props: TagInputProps) {
     this.containerEl = containerEl;
     this.tags = [...props.value];
@@ -38,26 +59,33 @@ export class TagInput {
     });
     this.inputEl = this.tagsWrapper.createEl('input', {
       type: 'text',
-      placeholder: 'Type to add labels...',
+      placeholder: 'Type to add labels…',
       cls: 'obsidian-issues-tag-input-field',
     });
+    this.inputEl.setAttribute('role', 'combobox');
+    this.inputEl.setAttribute('aria-expanded', 'false');
+    this.inputEl.setAttribute('aria-autocomplete', 'list');
+
     this.suggestionsEl = containerEl.createDiv({
       cls: 'obsidian-issues-tag-input-suggestions is-hidden',
     });
+    this.suggestionsEl.setAttribute('role', 'listbox');
 
     this.inputEl.addEventListener('keydown', (e) => this.handleKeyDown(e));
     this.inputEl.addEventListener('input', () => this.handleInput());
     this.inputEl.addEventListener('focus', () => this.handleInput());
+    this.inputEl.addEventListener('blur', this.handleBlur);
     this.containerEl.addEventListener('scroll', this.handleScroll);
-    window.addEventListener('scroll', this.handleScroll, true);
+    document.addEventListener('pointerdown', this.handleOutsidePointerDown, true);
     window.addEventListener('resize', this.handleScroll);
 
     this.renderTags();
   }
 
   destroy(): void {
+    this.inputEl.removeEventListener('blur', this.handleBlur);
     this.containerEl.removeEventListener('scroll', this.handleScroll);
-    window.removeEventListener('scroll', this.handleScroll, true);
+    document.removeEventListener('pointerdown', this.handleOutsidePointerDown, true);
     window.removeEventListener('resize', this.handleScroll);
   }
 
@@ -70,7 +98,15 @@ export class TagInput {
       e.preventDefault();
       this.removeLast();
     } else if (e.key === 'Enter' || e.key === ',') {
+      // Enter with a highlighted suggestion accepts it; otherwise the raw text
+      // becomes a new label. Either way the event is consumed so it never
+      // reaches the modal's submit-on-Enter handler.
       e.preventDefault();
+      e.stopPropagation();
+      if (this.activeIndex >= 0 && this.suggestions[this.activeIndex] !== undefined) {
+        this.selectSuggestion(this.activeIndex);
+        return;
+      }
       const value = this.inputEl.value.trim();
       if (value) {
         this.add(value);
@@ -78,6 +114,10 @@ export class TagInput {
       this.inputEl.value = '';
       this.hideSuggestions();
     } else if (e.key === 'Escape') {
+      if (this.suggestions.length > 0) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
       this.inputEl.value = '';
       this.hideSuggestions();
     } else if (e.key === 'ArrowDown' && this.suggestions.length > 0) {
@@ -92,16 +132,17 @@ export class TagInput {
   }
 
   private handleInput(): void {
-    const query = this.inputEl.value.trim();
+    const query = this.inputEl.value.trim().toLowerCase();
 
-    this.suggestions = this.knownLabels
-      .filter(
-        (label): label is string =>
-          typeof label === 'string' &&
-          label.length > 0 &&
-          label.toLowerCase().includes(query.toLowerCase()) &&
-          !this.tags.includes(label),
-      );
+    // Show all known labels when the field is empty / focused, then narrow
+    // to matching labels as the user types.
+    this.suggestions = this.knownLabels.filter(
+      (label): label is string =>
+        typeof label === 'string' &&
+        label.length > 0 &&
+        (query.length === 0 || label.toLowerCase().includes(query)) &&
+        !this.tags.includes(label),
+    );
     this.activeIndex = -1;
     this.renderSuggestions();
   }
@@ -111,18 +152,14 @@ export class TagInput {
     this.tagsWrapper.empty();
 
     for (const tag of this.tags) {
-      const color = getLabelColor(tag);
-      const tagEl = this.tagsWrapper.createSpan({
-        cls: 'obsidian-issues-tag',
-      });
-      tagEl.style.backgroundColor = color;
-      tagEl.style.color = getLabelTextColor(color);
-
+      const tagEl = this.tagsWrapper.createSpan({ cls: 'obsidian-issues-tag' });
+      applyLabelColor(tagEl, tag);
       tagEl.createSpan({ text: tag });
 
       const removeBtn = tagEl.createEl('button', {
         cls: 'obsidian-issues-tag-remove',
         type: 'button',
+        attr: { 'aria-label': `Remove label ${tag}` },
       });
       setIcon(removeBtn, 'x');
       removeBtn.addEventListener('click', (e) => {
@@ -137,8 +174,8 @@ export class TagInput {
 
   private positionSuggestions(): void {
     const rect = this.inputEl.getBoundingClientRect();
-    this.suggestionsEl.style.left = `${rect.left}px`;
-    this.suggestionsEl.style.top = `${rect.bottom + 4}px`;
+    this.suggestionsEl.style.setProperty('--suggestions-left', `${rect.left}px`);
+    this.suggestionsEl.style.setProperty('--suggestions-top', `${rect.bottom + 4}px`);
   }
 
   private renderSuggestions(): void {
@@ -146,10 +183,12 @@ export class TagInput {
 
     if (this.suggestions.length === 0) {
       this.suggestionsEl.addClass('is-hidden');
+      this.inputEl.setAttribute('aria-expanded', 'false');
       return;
     }
 
     this.suggestionsEl.removeClass('is-hidden');
+    this.inputEl.setAttribute('aria-expanded', 'true');
     this.positionSuggestions();
 
     for (let i = 0; i < this.suggestions.length; i++) {
@@ -158,11 +197,13 @@ export class TagInput {
         cls: `obsidian-issues-tag-input-suggestion${
           i === this.activeIndex ? ' is-active' : ''
         }`,
+        text: label,
+        attr: {
+          role: 'option',
+          'aria-selected': String(i === this.activeIndex),
+        },
       });
-      const color = getLabelColor(label);
-      item.style.backgroundColor = color;
-      item.style.color = getLabelTextColor(color);
-      item.textContent = label;
+      applyLabelColor(item, label);
       item.addEventListener('mousedown', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -205,5 +246,6 @@ export class TagInput {
     this.activeIndex = -1;
     this.suggestionsEl.empty();
     this.suggestionsEl.addClass('is-hidden');
+    this.inputEl.setAttribute('aria-expanded', 'false');
   }
 }

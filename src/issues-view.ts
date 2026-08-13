@@ -1,7 +1,6 @@
 import {
   DropdownComponent,
   ItemView,
-  moment,
   Notice,
   TFile,
   setIcon,
@@ -15,10 +14,22 @@ import {
   ISSUE_STATUS_LABELS,
   VIEW_TYPE_ISSUES,
 } from './constants';
+import { ConfirmModal } from './confirm-modal';
+import {
+  compareDueDates,
+  compareIsoDates,
+  dueState,
+  dueVariant,
+  toDisplayDate,
+  toIsoDate,
+} from './dates';
 import { IssueModal } from './issue-modal';
-import { getLabelColor, getLabelTextColor } from './labels';
+import { applyLabelColor } from './labels';
+import type { IssuesViewHost, IssueViewMode } from './settings';
 import type { Issue, IssuePriority, IssueStatus } from './types';
 import type { IssueService } from './issue-service';
+
+const SEARCH_DEBOUNCE_MS = 180;
 
 interface FilterState {
   search: string;
@@ -30,35 +41,56 @@ interface FilterState {
   sortDir: 'asc' | 'desc';
 }
 
+interface DropdownState {
+  button: HTMLElement;
+  panel: HTMLElement;
+  open: boolean;
+}
+
+interface ScrollSnapshot {
+  view: number;
+  board: number;
+  columns: Record<string, number>;
+}
+
 export class IssuesView extends ItemView {
   private issues: Issue[] = [];
-  private listEl: HTMLElement | null = null;
+  private summaryEl: HTMLElement | null = null;
+  private toolbarEl: HTMLElement | null = null;
   private contentWrapper: HTMLElement | null = null;
-  private viewMode: 'list' | 'kanban' = 'list';
-  private filters: FilterState = {
-    search: '',
-    status: [],
-    project: [],
-    priority: [],
-    labels: [],
-    sortBy: 'created',
-    sortDir: 'desc',
-  };
+  private listEl: HTMLElement | null = null;
+  private viewMode: IssueViewMode;
+  private filters: FilterState;
 
-  private dropdowns: Map<string, { button: HTMLElement; panel: HTMLElement; open: boolean }> = new Map();
+  private dropdowns: Map<string, DropdownState> = new Map();
   private listToggleButton: HTMLElement | null = null;
   private kanbanToggleButton: HTMLElement | null = null;
+  private searchDebounce: number | null = null;
+  /** Facet signature, so the toolbar is only rebuilt when its options change. */
+  private facetSignature = '';
+  /** Set between dragstart and dragend so the trailing click doesn't open a note. */
+  private draggingId: string | null = null;
+  private lastDragEnd = 0;
+  /** Issue to re-focus after the next repaint. */
+  private pendingFocusId: string | null = null;
 
   constructor(
     leaf: WorkspaceLeaf,
     private readonly issueService: IssueService,
+    private readonly host: IssuesViewHost,
   ) {
     super(leaf);
     this.navigation = false;
-    const saved = sessionStorage.getItem('obsidian-issues-view-mode');
-    if (saved === 'list' || saved === 'kanban') {
-      this.viewMode = saved;
-    }
+    this.viewMode = host.settings.viewMode;
+    this.filters = {
+      search: '',
+      status: [],
+      project: [],
+      priority: [],
+      labels: [],
+      sortBy: host.settings.defaultSortBy,
+      sortDir: host.settings.defaultSortDir,
+    };
   }
 
   getViewType(): string {
@@ -74,144 +106,284 @@ export class IssuesView extends ItemView {
   }
 
   protected async onOpen(): Promise<void> {
+    // Registered once for the lifetime of the view; Obsidian removes it on
+    // unload. Previously this was added and removed on every refresh.
+    this.registerDomEvent(document, 'click', this.handleDocumentClick);
     await this.refresh();
   }
 
-  async refresh(): Promise<void> {
-    document.removeEventListener('click', this.handleDocumentClick);
+  protected async onClose(): Promise<void> {
+    if (this.searchDebounce !== null) {
+      window.clearTimeout(this.searchDebounce);
+      this.searchDebounce = null;
+    }
     this.dropdowns.clear();
+  }
+
+  /**
+   * Full rebuild: header, summary, toolbar and content.
+   *
+   * The issues are loaded *before* any DOM is touched, so `renderAll` runs to
+   * completion synchronously. Awaiting halfway through the build let two
+   * concurrent refreshes interleave — the second emptied `contentEl` while the
+   * first was suspended, and the first then appended a second toolbar to it.
+   */
+  async refresh(): Promise<void> {
+    this.issues = await this.issueService.listIssues();
+    this.renderAll();
+  }
+
+  /**
+   * Re-reads the issues and repaints the summary and content, leaving the
+   * toolbar DOM alone unless its options actually changed. A full rebuild on
+   * every vault event destroyed the search box mid-keystroke.
+   */
+  async reload(): Promise<void> {
+    this.issues = await this.issueService.listIssues();
+
+    if (this.contentWrapper === null) {
+      this.renderAll();
+      return;
+    }
+
+    const signature = this.computeFacetSignature();
+    if (signature !== this.facetSignature) {
+      this.facetSignature = signature;
+      this.rebuildToolbar();
+    }
+
+    this.renderSummary();
+    this.renderContent();
+  }
+
+  private renderAll(): void {
     const { contentEl } = this;
+    this.dropdowns.clear();
     contentEl.empty();
     contentEl.addClass('obsidian-issues-view');
+    this.facetSignature = this.computeFacetSignature();
 
     const header = contentEl.createDiv({ cls: 'obsidian-issues-header' });
     header.createEl('h2', { text: 'Issues' });
     this.renderViewToggle(header);
+    this.renderNewIssueButton(header);
 
-    const newIssueButton = header.createEl('button', {
-      text: '+ new issue',
-      cls: 'mod-cta obsidian-issues-new-button',
-    });
+    this.summaryEl = contentEl.createDiv({ cls: 'obsidian-issues-summary' });
+    this.renderSummary();
 
-    newIssueButton.addEventListener('click', () => {
-      void (async () => {
-        const [knownLabels, knownProjects] = await Promise.all([
-          this.issueService.getAllLabels(),
-          this.issueService.getAllProjects(),
-        ]);
+    this.toolbarEl = contentEl.createDiv({ cls: 'obsidian-issues-toolbar' });
+    this.renderToolbar();
 
-        new IssueModal(this.app, {
-          title: 'New issue',
-          initial: {},
-          knownLabels,
-          knownProjects,
-          statusEditable: false,
-          submitLabel: 'Create',
-          onSubmit: async (data) => {
-            newIssueButton.disabled = true;
-            try {
-              const file = await this.issueService.createIssue(data);
-              await this.app.workspace.getLeaf(false).openFile(file);
-              new Notice(`Created ${file.basename}`);
-            } catch (error) {
-              console.error('Obsidian Issues: failed to create issue', error);
-              new Notice('Could not create issue. Check the developer console.');
-            } finally {
-              newIssueButton.disabled = false;
-            }
-          },
-        }).open();
-      })();
-    });
-
-    this.issues = await this.issueService.listIssues();
-
-    const summary = contentEl.createDiv({ cls: 'obsidian-issues-summary' });
-    for (const status of ISSUE_STATUSES) {
-      const count = this.issues.filter((i) => i.status === status).length;
-      summary.createSpan({ text: `${ISSUE_STATUS_LABELS[status].toUpperCase()} ${count}` });
-    }
-
-    const toolbar = contentEl.createDiv({ cls: 'obsidian-issues-toolbar' });
-    this.renderToolbar(toolbar, this.issues);
-
-    this.contentWrapper = contentEl.createDiv({
-      cls: 'obsidian-issues-content',
-    });
+    this.contentWrapper = contentEl.createDiv({ cls: 'obsidian-issues-content' });
     this.renderContent();
+  }
 
-    document.addEventListener('click', this.handleDocumentClick);
+  private computeFacetSignature(): string {
+    const projects = new Set<string>();
+    const labels = new Set<string>();
+    for (const issue of this.issues) {
+      if (issue.project.length > 0) projects.add(issue.project);
+      for (const label of issue.labels) labels.add(label);
+    }
+    // NUL-separated: joined on a space, the two projects "a" and "b" would be
+    // indistinguishable from the single project "a b".
+    return `${[...projects].sort().join('\u0000')}|${[...labels].sort().join('\u0000')}`;
   }
 
   private handleDocumentClick = (e: MouseEvent): void => {
     if (!(e.target instanceof Node)) return;
     for (const [, state] of this.dropdowns) {
       if (state.open && !state.button.contains(e.target) && !state.panel.contains(e.target)) {
-        state.open = false;
-        state.panel.addClass('is-hidden');
+        this.setDropdownOpen(state, false);
       }
     }
   };
 
+  private setDropdownOpen(state: DropdownState, open: boolean): void {
+    state.open = open;
+    state.panel.toggleClass('is-hidden', !open);
+    state.button.setAttribute('aria-expanded', String(open));
+
+    if (open) {
+      // Flip to right-aligned if the panel would overflow the viewport.
+      const rect = state.panel.getBoundingClientRect();
+      state.panel.toggleClass('is-flipped', rect.right > window.innerWidth);
+    } else {
+      state.panel.removeClass('is-flipped');
+    }
+  }
+
+  private renderNewIssueButton(header: HTMLElement): void {
+    const newIssueButton = header.createEl('button', {
+      text: '+ New issue',
+      cls: 'mod-cta obsidian-issues-new-button',
+      type: 'button',
+    });
+
+    newIssueButton.addEventListener('click', () => {
+      void (async () => {
+        newIssueButton.disabled = true;
+        try {
+          const [knownLabels, knownProjects] = await Promise.all([
+            this.issueService.getAllLabels(),
+            this.issueService.getAllProjects(),
+          ]);
+
+          new IssueModal(this.app, {
+            title: 'New issue',
+            initial: {},
+            knownLabels,
+            knownProjects,
+            statusEditable: false,
+            submitLabel: 'Create',
+            onSubmit: async (data) => {
+              const file = await this.issueService.createIssue(data);
+              await this.app.workspace.getLeaf(false).openFile(file);
+              new Notice(`Created ${file.basename}`);
+            },
+          }).open();
+        } catch (error) {
+          console.error('Obsidian Issues: failed to open new issue modal', error);
+          new Notice('Could not create issue. Check the developer console.');
+        } finally {
+          newIssueButton.disabled = false;
+        }
+      })();
+    });
+  }
+
   private renderViewToggle(header: HTMLElement): void {
-    const toggle = header.createDiv({ cls: 'obsidian-issues-view-toggle' });
-    const listBtn = toggle.createEl('button', {
-      text: 'List',
-      cls: `mod-plaintext obsidian-issues-view-toggle-button${this.viewMode === 'list' ? ' is-active' : ''}`,
+    const toggle = header.createDiv({
+      cls: 'obsidian-issues-view-toggle',
+      attr: { role: 'group', 'aria-label': 'Issue layout' },
     });
-    const kanbanBtn = toggle.createEl('button', {
-      text: 'Kanban',
-      cls: `mod-plaintext obsidian-issues-view-toggle-button${this.viewMode === 'kanban' ? ' is-active' : ''}`,
-    });
-    this.listToggleButton = listBtn;
-    this.kanbanToggleButton = kanbanBtn;
-    listBtn.addEventListener('click', () => {
-      void this.setViewMode('list');
-    });
-    kanbanBtn.addEventListener('click', () => {
-      void this.setViewMode('kanban');
-    });
+
+    const makeButton = (mode: IssueViewMode, text: string): HTMLElement => {
+      const button = toggle.createEl('button', {
+        text,
+        cls: `obsidian-issues-view-toggle-button${this.viewMode === mode ? ' is-active' : ''}`,
+        type: 'button',
+        attr: { 'aria-pressed': String(this.viewMode === mode) },
+      });
+      button.addEventListener('click', () => {
+        void this.setViewMode(mode);
+      });
+      return button;
+    };
+
+    this.listToggleButton = makeButton('list', 'List');
+    this.kanbanToggleButton = makeButton('kanban', 'Kanban');
   }
 
   private updateViewToggle(): void {
-    this.listToggleButton?.toggleClass('is-active', this.viewMode === 'list');
-    this.kanbanToggleButton?.toggleClass('is-active', this.viewMode === 'kanban');
+    for (const [button, mode] of [
+      [this.listToggleButton, 'list'] as const,
+      [this.kanbanToggleButton, 'kanban'] as const,
+    ]) {
+      if (!button) continue;
+      const active = this.viewMode === mode;
+      button.toggleClass('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    }
   }
 
-  private async setViewMode(mode: 'list' | 'kanban'): Promise<void> {
+  /**
+   * Adopts the layout currently stored in settings. Used by the "Toggle list /
+   * Kanban layout" command, which changes the setting from outside the view —
+   * without this the command silently did nothing to an already-open view.
+   */
+  applyLayoutFromSettings(): void {
+    const mode = this.host.settings.viewMode;
+    if (this.viewMode === mode) return;
     this.viewMode = mode;
-    sessionStorage.setItem('obsidian-issues-view-mode', mode);
+    if (mode === 'kanban') {
+      this.filters.status = [];
+    }
     this.updateViewToggle();
+    this.rebuildToolbar();
     this.renderContent();
   }
 
-  private renderToolbar(container: HTMLElement, issues: Issue[]): void {
-    new TextComponent(container)
-      .setPlaceholder('Search issues…')
-      .setValue(this.filters.search)
-      .onChange((value) => {
-        this.filters.search = value;
-        this.renderContent();
-      });
+  private async setViewMode(mode: IssueViewMode): Promise<void> {
+    if (this.viewMode === mode) return;
+    this.viewMode = mode;
+    // The Kanban columns *are* the status axis, so a status filter there only
+    // empties columns. Drop it when switching in.
+    if (mode === 'kanban') {
+      this.filters.status = [];
+    }
+    this.host.settings.viewMode = mode;
+    await this.host.saveSettings();
+    this.updateViewToggle();
+    this.rebuildToolbar();
+    this.renderContent();
+  }
 
-    this.renderFilterDropdown(
-      container,
-      'status',
-      'Status',
-      ISSUE_STATUSES.map((s) => ({ value: s, label: ISSUE_STATUS_LABELS[s] })),
-      () => this.filters.status,
-      (value) => {
-        const v = value as IssueStatus;
-        if (this.filters.status.includes(v)) {
-          this.filters.status = this.filters.status.filter((s) => s !== v);
-        } else {
-          this.filters.status = [...this.filters.status, v];
-        }
-      },
-    );
+  private renderSummary(): void {
+    if (!this.summaryEl) return;
+    this.summaryEl.empty();
+
+    for (const status of ISSUE_STATUSES) {
+      const count = this.issues.filter((i) => i.status === status).length;
+      const item = this.summaryEl.createSpan({ cls: 'obsidian-issues-summary-item' });
+      item.createSpan({
+        text: ISSUE_STATUS_LABELS[status],
+        cls: `obsidian-issues-summary-label is-${status}`,
+      });
+      item.createSpan({ text: String(count), cls: 'obsidian-issues-summary-count' });
+    }
+
+    const total = this.issues.length;
+    const item = this.summaryEl.createSpan({ cls: 'obsidian-issues-summary-item' });
+    item.createSpan({ text: 'Total', cls: 'obsidian-issues-summary-label' });
+    item.createSpan({ text: String(total), cls: 'obsidian-issues-summary-count' });
+  }
+
+  private rebuildToolbar(): void {
+    if (!this.toolbarEl) return;
+    this.dropdowns.clear();
+    this.toolbarEl.empty();
+    this.renderToolbar();
+  }
+
+  private renderToolbar(): void {
+    const container = this.toolbarEl;
+    if (!container) return;
+
+    const search = new TextComponent(container);
+    search.setPlaceholder('Search issues…').setValue(this.filters.search);
+    search.inputEl.addClass('obsidian-issues-search');
+    search.inputEl.type = 'search';
+    search.inputEl.setAttribute('aria-label', 'Search issues');
+    search.onChange((value) => {
+      // The filter is updated synchronously and only the repaint is debounced.
+      // Debouncing the assignment too meant a toolbar rebuild landing mid-type
+      // could restore the previous query and discard what was typed.
+      this.filters.search = value;
+      if (this.searchDebounce !== null) {
+        window.clearTimeout(this.searchDebounce);
+      }
+      this.searchDebounce = window.setTimeout(() => {
+        this.searchDebounce = null;
+        this.renderContent();
+      }, SEARCH_DEBOUNCE_MS);
+    });
+
+    if (this.viewMode === 'list') {
+      this.renderFilterDropdown(
+        container,
+        'status',
+        'Status',
+        ISSUE_STATUSES.map((s) => ({ value: s, label: ISSUE_STATUS_LABELS[s] })),
+        () => this.filters.status,
+        (value) => {
+          this.filters.status = toggleInArray(this.filters.status, value as IssueStatus);
+        },
+      );
+    }
 
     const knownProjects = Array.from(
-      new Set(issues.map((i) => i.project).filter((p) => p.length > 0)),
+      new Set(this.issues.map((i) => i.project).filter((p) => p.length > 0)),
     ).sort();
     if (knownProjects.length > 0) {
       this.renderFilterDropdown(
@@ -221,11 +393,7 @@ export class IssuesView extends ItemView {
         knownProjects.map((p) => ({ value: p, label: p })),
         () => this.filters.project,
         (value) => {
-          if (this.filters.project.includes(value)) {
-            this.filters.project = this.filters.project.filter((p) => p !== value);
-          } else {
-            this.filters.project = [...this.filters.project, value];
-          }
+          this.filters.project = toggleInArray(this.filters.project, value);
         },
       );
     }
@@ -237,17 +405,12 @@ export class IssuesView extends ItemView {
       ISSUE_PRIORITIES.map((p) => ({ value: p, label: ISSUE_PRIORITY_LABELS[p] })),
       () => this.filters.priority,
       (value) => {
-        const v = value as IssuePriority;
-        if (this.filters.priority.includes(v)) {
-          this.filters.priority = this.filters.priority.filter((p) => p !== v);
-        } else {
-          this.filters.priority = [...this.filters.priority, v];
-        }
+        this.filters.priority = toggleInArray(this.filters.priority, value as IssuePriority);
       },
     );
 
     const labelSet = new Set<string>();
-    for (const issue of issues) {
+    for (const issue of this.issues) {
       for (const label of issue.labels) {
         labelSet.add(label);
       }
@@ -258,19 +421,13 @@ export class IssuesView extends ItemView {
         container,
         'labels',
         'Labels',
-        knownLabels.map((l) => ({
-          value: l,
-          label: l,
-          bg: getLabelColor(l),
-          textColor: getLabelTextColor(getLabelColor(l)),
-        })),
+        knownLabels.map((l) => ({ value: l, label: l, colored: true })),
         () => this.filters.labels,
         (value) => {
-          if (this.filters.labels.includes(value)) {
-            this.filters.labels = this.filters.labels.filter((l) => l !== value);
-          } else {
-            this.filters.labels = [...this.filters.labels, value];
-          }
+          this.filters.labels = toggleInArray(this.filters.labels, value);
+        },
+        () => {
+          this.filters.labels = [];
         },
       );
     }
@@ -278,12 +435,12 @@ export class IssuesView extends ItemView {
     const sortDropdown = new DropdownComponent(container);
     sortDropdown.addOption('created-desc', 'Created ↓');
     sortDropdown.addOption('created-asc', 'Created ↑');
-    sortDropdown.addOption('due-desc', 'Due ↓');
-    sortDropdown.addOption('due-asc', 'Due ↑');
+    sortDropdown.addOption('due-asc', 'Due soonest');
+    sortDropdown.addOption('due-desc', 'Due latest');
     sortDropdown.addOption('priority-desc', 'Priority ↓');
     sortDropdown.addOption('priority-asc', 'Priority ↑');
-    const sortValue = `${this.filters.sortBy}-${this.filters.sortDir}`;
-    sortDropdown.setValue(sortValue);
+    sortDropdown.selectEl.setAttribute('aria-label', 'Sort issues');
+    sortDropdown.setValue(`${this.filters.sortBy}-${this.filters.sortDir}`);
     sortDropdown.onChange((value) => {
       const [sortBy, sortDir] = value.split('-') as ['created' | 'due' | 'priority', 'asc' | 'desc'];
       this.filters.sortBy = sortBy;
@@ -291,34 +448,38 @@ export class IssuesView extends ItemView {
       this.renderContent();
     });
 
-    const clearAllBtn = container.createEl('button', {
-      text: 'Clear all',
-      cls: 'obsidian-issues-clear-all mod-secondary',
+    const resetButton = container.createEl('button', {
+      text: 'Reset filters',
+      cls: 'obsidian-issues-clear-all',
       type: 'button',
     });
-    clearAllBtn.addEventListener('click', () => {
+    resetButton.addEventListener('click', () => {
       this.resetAllFilters();
-      void this.refresh();
+      this.rebuildToolbar();
+      this.renderContent();
     });
   }
 
   private resetAllFilters(): void {
-    this.filters.search = '';
-    this.filters.status = [];
-    this.filters.project = [];
-    this.filters.priority = [];
-    this.filters.labels = [];
-    this.filters.sortBy = 'created';
-    this.filters.sortDir = 'desc';
+    this.filters = {
+      search: '',
+      status: [],
+      project: [],
+      priority: [],
+      labels: [],
+      sortBy: this.host.settings.defaultSortBy,
+      sortDir: this.host.settings.defaultSortDir,
+    };
   }
 
   private renderFilterDropdown(
     container: HTMLElement,
     name: string,
     labelText: string,
-    options: { value: string; label: string; bg?: string; textColor?: string }[],
+    options: { value: string; label: string; colored?: boolean }[],
     getSelected: () => string[],
     toggleValue: (value: string) => void,
+    clearAll?: () => void,
   ): void {
     const wrapper = container.createDiv({
       cls: 'obsidian-issues-filter-dropdown-wrapper',
@@ -326,87 +487,172 @@ export class IssuesView extends ItemView {
     const selected = getSelected();
     const button = wrapper.createEl('button', {
       text: selected.length > 0 ? `${labelText} (${selected.length})` : labelText,
-      cls: 'obsidian-issues-label-dropdown mod-plaintext',
+      cls: `obsidian-issues-label-dropdown${selected.length > 0 ? ' is-filtering' : ''}`,
       type: 'button',
+      attr: { 'aria-expanded': 'false', 'aria-haspopup': 'true' },
     });
     const panel = wrapper.createDiv({
       cls: 'obsidian-issues-label-dropdown-panel is-hidden',
+      attr: { role: 'group', 'aria-label': `${labelText} filter` },
     });
 
-    this.dropdowns.set(name, { button, panel, open: false });
+    const state: DropdownState = { button, panel, open: false };
+    this.dropdowns.set(name, state);
 
     button.addEventListener('click', () => {
-      const state = this.dropdowns.get(name);
-      if (state) {
-        state.open = !state.open;
-        panel.toggleClass('is-hidden', !state.open);
-      }
+      this.setDropdownOpen(state, !state.open);
     });
+
+    const syncButton = (): void => {
+      const current = getSelected();
+      button.textContent = current.length > 0 ? `${labelText} (${current.length})` : labelText;
+      button.toggleClass('is-filtering', current.length > 0);
+    };
 
     for (const opt of options) {
       const isActive = getSelected().includes(opt.value);
-      const btn = panel.createSpan({
+      // A real <button> rather than a <span>, so the options are reachable and
+      // operable from the keyboard.
+      const optionButton = panel.createEl('button', {
         text: opt.label,
         cls: `obsidian-issues-label-filter${isActive ? ' is-active' : ''}`,
+        type: 'button',
+        attr: { 'aria-pressed': String(isActive) },
       });
-      if (opt.bg) btn.style.backgroundColor = opt.bg;
-      if (opt.textColor) btn.style.color = opt.textColor;
-      btn.addEventListener('click', () => {
-        const wasActive = getSelected().includes(opt.value);
+      if (opt.colored === true) {
+        optionButton.addClass('is-colored');
+        applyLabelColor(optionButton, opt.value);
+      }
+      optionButton.addEventListener('click', () => {
         toggleValue(opt.value);
-        btn.toggleClass('is-active', !wasActive);
-        const newSelected = getSelected();
-        button.textContent = newSelected.length > 0
-          ? `${labelText} (${newSelected.length})`
-          : labelText;
+        const nowActive = getSelected().includes(opt.value);
+        optionButton.toggleClass('is-active', nowActive);
+        optionButton.setAttribute('aria-pressed', String(nowActive));
+        syncButton();
         this.renderContent();
       });
     }
 
-    if (name === 'labels') {
+    if (clearAll) {
       panel.createEl('hr', { cls: 'obsidian-issues-clear-divider' });
       const clearBtn = panel.createEl('button', {
-        text: 'Clear all',
-        cls: 'obsidian-issues-clear-labels mod-secondary',
+        text: `Clear ${labelText.toLowerCase()}`,
+        cls: 'obsidian-issues-clear-labels',
         type: 'button',
       });
       clearBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        this.filters.labels = [];
-        panel.querySelectorAll('.obsidian-issues-label-filter.is-active')
-          .forEach((el) => el.classList.remove('is-active'));
-        button.textContent = 'Labels';
-        const state = this.dropdowns.get(name);
-        if (state) state.open = false;
-        panel.addClass('is-hidden');
+        clearAll();
+        panel.querySelectorAll('.obsidian-issues-label-filter.is-active').forEach((el) => {
+          el.classList.remove('is-active');
+          el.setAttribute('aria-pressed', 'false');
+        });
+        syncButton();
+        this.setDropdownOpen(state, false);
         this.renderContent();
       });
     }
   }
 
+  /**
+   * Repaints the list or board.
+   *
+   * Scroll offsets are captured first and reapplied afterwards. Emptying the
+   * wrapper collapses its height to zero, at which point the browser clamps
+   * every enclosing scroller to the top — so moving a card used to throw the
+   * reader back to the start of the board.
+   */
   private renderContent(): void {
     if (!this.contentWrapper) return;
+
+    const scroll = this.captureScroll();
+
     this.contentWrapper.empty();
+    this.contentWrapper.toggleClass('is-kanban', this.viewMode === 'kanban');
 
     if (this.viewMode === 'list') {
       this.listEl = this.contentWrapper.createDiv({ cls: 'obsidian-issues-list' });
       this.renderList();
     } else {
+      this.listEl = null;
       this.renderKanban();
     }
+
+    this.restoreScroll(scroll);
+    this.restoreFocus();
+  }
+
+  private captureScroll(): ScrollSnapshot {
+    const columns: Record<string, number> = {};
+    const wrapper = this.contentWrapper;
+
+    if (wrapper) {
+      wrapper
+        .querySelectorAll<HTMLElement>('.obsidian-issues-kanban-column')
+        .forEach((column) => {
+          const status = column.dataset.status;
+          const body = column.querySelector<HTMLElement>('.obsidian-issues-kanban-column-body');
+          if (status !== undefined && body !== null) {
+            columns[status] = body.scrollTop;
+          }
+        });
+    }
+
+    return {
+      view: this.contentEl.scrollTop,
+      board:
+        wrapper?.querySelector<HTMLElement>('.obsidian-issues-kanban')?.scrollLeft ?? 0,
+      columns,
+    };
+  }
+
+  private restoreScroll(scroll: ScrollSnapshot): void {
+    const wrapper = this.contentWrapper;
+    if (!wrapper) return;
+
+    const board = wrapper.querySelector<HTMLElement>('.obsidian-issues-kanban');
+    if (board) board.scrollLeft = scroll.board;
+
+    wrapper
+      .querySelectorAll<HTMLElement>('.obsidian-issues-kanban-column')
+      .forEach((column) => {
+        const status = column.dataset.status;
+        const body = column.querySelector<HTMLElement>('.obsidian-issues-kanban-column-body');
+        const previous = status === undefined ? undefined : scroll.columns[status];
+        if (body !== null && previous !== undefined) {
+          body.scrollTop = previous;
+        }
+      });
+
+    this.contentEl.scrollTop = scroll.view;
+  }
+
+  /**
+   * Returns focus to the card or row that was just acted on, so repeated
+   * keyboard moves (Ctrl/Cmd + arrow) keep working on the same issue.
+   */
+  private restoreFocus(): void {
+    const id = this.pendingFocusId;
+    this.pendingFocusId = null;
+    if (id === null || !this.contentWrapper) return;
+
+    const target = this.contentWrapper.querySelector<HTMLElement>(
+      `.obsidian-issues-kanban-card[data-issue-id="${CSS.escape(id)}"]`,
+    );
+    target?.focus();
+  }
+
+  private visibleIssues(): Issue[] {
+    return this.applySort(this.applyFilters(this.issues));
   }
 
   private renderList(): void {
     if (!this.listEl) return;
 
-    const filtered = this.applyFilters(this.issues);
-    const sorted = this.applySort(filtered);
+    const sorted = this.visibleIssues();
 
     if (sorted.length === 0) {
-      this.listEl.createDiv({
-        text: 'No issues match your filters.',
-        cls: 'obsidian-issues-empty',
-      });
+      this.renderEmptyState(this.listEl);
       return;
     }
 
@@ -415,42 +661,79 @@ export class IssuesView extends ItemView {
     }
   }
 
+  private renderEmptyState(container: HTMLElement): void {
+    const hasFilters = this.hasActiveFilters();
+    const empty = container.createDiv({ cls: 'obsidian-issues-empty' });
+    empty.createSpan({
+      text: hasFilters
+        ? 'No issues match your filters.'
+        : 'No issues yet. Create one with “+ New issue”.',
+    });
+    if (hasFilters) {
+      const reset = empty.createEl('button', {
+        text: 'Reset filters',
+        cls: 'obsidian-issues-empty-reset',
+        type: 'button',
+      });
+      reset.addEventListener('click', () => {
+        this.resetAllFilters();
+        this.rebuildToolbar();
+        this.renderContent();
+      });
+    }
+  }
+
+  private hasActiveFilters(): boolean {
+    return (
+      this.filters.search.length > 0 ||
+      this.filters.status.length > 0 ||
+      this.filters.project.length > 0 ||
+      this.filters.priority.length > 0 ||
+      this.filters.labels.length > 0
+    );
+  }
+
+  /**
+   * Status groups are always rendered, even when empty — otherwise there is
+   * nothing to drop a card onto, and a fresh vault shows no board structure
+   * at all.
+   */
   private renderKanban(): void {
     if (!this.contentWrapper) return;
 
-    const filtered = this.applyFilters(this.issues);
-    const sorted = this.applySort(filtered);
-
-    const hasIssues = sorted.length > 0;
-    if (!hasIssues) {
-      this.contentWrapper.createDiv({
-        text: 'No issues match your filters.',
-        cls: 'obsidian-issues-empty',
-      });
-      return;
-    }
+    const sorted = this.visibleIssues();
+    // The columns need a flex row of their own; the content wrapper is shared
+    // with the list layout.
+    const board = this.contentWrapper.createDiv({ cls: 'obsidian-issues-kanban' });
 
     for (const status of ISSUE_STATUSES) {
-      const columnIssues = sorted.filter((i) => i.status === status);
-      this.renderKanbanColumn(status, columnIssues);
+      this.renderKanbanColumn(board, status, sorted.filter((i) => i.status === status));
+    }
+
+    if (sorted.length === 0 && this.hasActiveFilters()) {
+      this.renderEmptyState(this.contentWrapper);
     }
   }
 
   private renderKanbanColumn(
+    board: HTMLElement,
     status: IssueStatus,
     issues: Issue[],
   ): void {
-    if (!this.contentWrapper) return;
-
-    const column = this.contentWrapper.createDiv({
+    // An aria-label needs a role to be announced; on a bare div it is ignored.
+    const column = board.createDiv({
       cls: 'obsidian-issues-kanban-column',
+      attr: { role: 'group', 'aria-label': `${ISSUE_STATUS_LABELS[status]} column` },
     });
     column.dataset.status = status;
 
     const header = column.createDiv({
       cls: 'obsidian-issues-kanban-column-header',
     });
-    header.createSpan({ text: ISSUE_STATUS_LABELS[status] });
+    header.createSpan({
+      text: ISSUE_STATUS_LABELS[status],
+      cls: `obsidian-issues-kanban-column-title is-${status}`,
+    });
     header.createSpan({
       text: String(issues.length),
       cls: 'obsidian-issues-kanban-column-count',
@@ -458,17 +741,30 @@ export class IssuesView extends ItemView {
 
     const body = column.createDiv({
       cls: 'obsidian-issues-kanban-column-body',
+      attr: { role: 'list' },
     });
 
-    for (const issue of issues) {
-      this.renderKanbanCard(issue, body);
+    if (issues.length === 0) {
+      // Carries `listitem` so it isn't an invalid non-item child of the list.
+      body.createDiv({
+        text: 'Drop issues here',
+        cls: 'obsidian-issues-kanban-column-empty',
+        attr: { role: 'listitem' },
+      });
+    } else {
+      for (const issue of issues) {
+        this.renderKanbanCard(issue, body);
+      }
     }
 
     column.addEventListener('dragover', (e: DragEvent) => {
       e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       column.addClass('is-drag-over');
     });
-    column.addEventListener('dragleave', () => {
+    column.addEventListener('dragleave', (e: DragEvent) => {
+      // Ignore the dragleave fired when moving between the column's children.
+      if (e.relatedTarget instanceof Node && column.contains(e.relatedTarget)) return;
       column.removeClass('is-drag-over');
     });
     column.addEventListener('drop', (e: DragEvent) => {
@@ -483,20 +779,51 @@ export class IssuesView extends ItemView {
   }
 
   private renderKanbanCard(issue: Issue, container: HTMLElement): void {
+    // `role="listitem"` rather than `role="button"`: the card contains its own
+    // buttons, and a button may not contain interactive descendants.
     const card = container.createDiv({
       cls: 'obsidian-issues-kanban-card',
+      attr: {
+        draggable: 'true',
+        tabindex: '0',
+        role: 'listitem',
+        'aria-label': `${issue.title}, ${ISSUE_STATUS_LABELS[issue.status]}`,
+      },
     });
     card.dataset.issueId = issue.id;
-    card.setAttr('draggable', 'true');
+    card.addClass(`is-status-${issue.status}`);
 
     const topLine = card.createDiv({ cls: 'obsidian-issues-kanban-card-top' });
-    topLine.createSpan({ text: issue.id, cls: 'obsidian-issues-kanban-card-id' });
-    topLine.createSpan({ text: issue.title, cls: 'obsidian-issues-kanban-card-title' });
-
-    const deleteBtn = topLine.createEl('button', {
-      cls: 'obsidian-issues-kanban-card-delete mod-warning',
-      title: 'Delete issue',
+    topLine.createSpan({
+      text: shortIssueId(issue.id),
+      cls: 'obsidian-issues-kanban-card-id',
+    });
+    const cardTitle = topLine.createEl('button', {
+      text: issue.title,
+      cls: 'obsidian-issues-kanban-card-title',
       type: 'button',
+    });
+    cardTitle.addEventListener('click', (e: MouseEvent) => {
+      e.stopPropagation();
+      void this.openIssue(issue);
+    });
+
+    const actions = topLine.createDiv({ cls: 'obsidian-issues-card-buttons' });
+    const editBtn = actions.createEl('button', {
+      cls: 'obsidian-issues-edit-button',
+      type: 'button',
+      attr: { 'aria-label': `Edit ${issue.title}` },
+    });
+    setIcon(editBtn, 'pencil');
+    editBtn.addEventListener('click', (e: MouseEvent) => {
+      e.stopPropagation();
+      void this.editIssue(issue);
+    });
+
+    const deleteBtn = actions.createEl('button', {
+      cls: 'obsidian-issues-delete-button mod-warning',
+      type: 'button',
+      attr: { 'aria-label': `Delete ${issue.title}` },
     });
     setIcon(deleteBtn, 'trash-2');
     deleteBtn.addEventListener('click', (e: MouseEvent) => {
@@ -506,80 +833,104 @@ export class IssuesView extends ItemView {
 
     const meta = card.createDiv({ cls: 'obsidian-issues-kanban-card-meta' });
     meta.createSpan({
-      text: issue.priority.toUpperCase(),
+      text: ISSUE_PRIORITY_LABELS[issue.priority].toUpperCase(),
       cls: `obsidian-issues-priority is-${issue.priority}`,
     });
-    if (issue.due) {
-      const dueDate = parseDueDate(issue.due);
-      meta.createSpan({
-        text: `Due ${dueDate.format('DD/MM/YYYY')}`,
-        cls: 'obsidian-issues-due',
-      });
-    }
-    if (issue.source) {
-      const sourceLink = meta.createEl('a', {
-        text: issue.source,
-        cls: 'obsidian-issues-source-link',
-      });
-      sourceLink.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const sourceFile = this.app.vault.getAbstractFileByPath(issue.source);
-        if (sourceFile instanceof TFile) {
-          void this.app.workspace.getLeaf(false).openFile(sourceFile);
-        } else {
-          new Notice('Note not found.');
-        }
-      });
-    }
+    this.renderDue(meta, issue);
+    this.renderLabels(meta, issue);
+    this.renderSourceLink(meta, issue);
 
     card.addEventListener('dragstart', (e: DragEvent) => {
+      this.draggingId = issue.id;
       e.dataTransfer?.setData('text/plain', issue.id);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
       card.addClass('is-dragging');
     });
     card.addEventListener('dragend', () => {
       card.removeClass('is-dragging');
+      this.draggingId = null;
+      this.lastDragEnd = Date.now();
     });
     card.addEventListener('click', () => {
-      void this.app.workspace.getLeaf(false).openFile(issue.file);
+      // A cancelled drag can be followed by a click on the source card. The
+      // timestamp guard covers browsers that dispatch that click in a later
+      // task, where clearing a flag on `dragend` alone would come too late.
+      if (this.draggingId !== null || Date.now() - this.lastDragEnd < 200) return;
+      void this.openIssue(issue);
+    });
+    card.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        void this.openIssue(issue);
+        return;
+      }
+      // Keyboard equivalent of dragging a card between columns.
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+        e.preventDefault();
+        const index = ISSUE_STATUSES.indexOf(issue.status);
+        const target = ISSUE_STATUSES[index + (e.key === 'ArrowRight' ? 1 : -1)];
+        if (target) void this.updateIssueStatus(issue, target, true);
+      }
     });
   }
 
   private renderIssueRow(issue: Issue): void {
     const row = this.listEl!.createDiv({ cls: 'obsidian-issues-row' });
-    if (issue.status.toLowerCase() === 'closed') {
-      row.addClass('is-closed');
+    row.addClass(`is-status-${issue.status}`);
+
+    // The edge marker follows the same rule as the due-date text: a closed
+    // issue is never flagged as overdue.
+    if (issue.status !== 'closed') {
+      const state = dueState(issue.due);
+      if (state === 'today') row.addClass('is-due-today');
+      if (state === 'overdue') row.addClass('is-overdue');
     }
-    if (issue.due) {
-      const dueDate = parseDueDate(issue.due);
-      if (dueDate.isValid() && dueDate.isBefore(moment(), 'day')) {
-        row.addClass('is-overdue');
-      }
-    }
-    row.setAttr('role', 'button');
-    row.setAttr('tabindex', '0');
 
     const topLine = row.createDiv({ cls: 'obsidian-issues-row-top' });
-    const statusDot = topLine.createSpan({
-      text: issue.status === 'closed' ? '○' : '●',
-      cls: `obsidian-issues-status-dot is-${issue.status === 'in-progress' ? 'in-progress' : issue.status}`,
+
+    // A real button: the status control is interactive, so it needs to be
+    // focusable and announced as such.
+    const statusButton = topLine.createEl('button', {
+      cls: `obsidian-issues-status-dot is-${issue.status}`,
+      type: 'button',
+      attr: {
+        'aria-label': `${issue.title} is ${ISSUE_STATUS_LABELS[issue.status].toLowerCase()}. Change status.`,
+      },
     });
-    statusDot.addEventListener('click', (e: MouseEvent) => {
+    // The glyph is decorative; the button's aria-label already carries the state.
+    statusButton.createSpan({
+      text: STATUS_GLYPHS[issue.status],
+      attr: { 'aria-hidden': 'true' },
+    });
+    statusButton.addEventListener('click', (e: MouseEvent) => {
       e.stopPropagation();
-      void this.toggleStatus(issue);
+      void this.cycleStatus(issue);
     });
-    topLine.createSpan({ text: issue.title, cls: 'obsidian-issues-title' });
+
+    // The row itself is a plain div. It used to be role="button" with two
+    // nested <button>s inside it, which is invalid and made the row's own
+    // action ambiguous to assistive tech.
+    const titleButton = topLine.createEl('button', {
+      text: issue.title,
+      cls: 'obsidian-issues-title',
+      type: 'button',
+    });
+    titleButton.addEventListener('click', (e: MouseEvent) => {
+      e.stopPropagation();
+      void this.openIssue(issue);
+    });
+
     topLine.createSpan({
-      text: issue.priority.toUpperCase(),
+      text: ISSUE_PRIORITY_LABELS[issue.priority].toUpperCase(),
       cls: `obsidian-issues-priority is-${issue.priority}`,
     });
 
-    const buttonGroup = topLine.createDiv({
-      cls: 'obsidian-issues-row-buttons',
-    });
+    const buttonGroup = topLine.createDiv({ cls: 'obsidian-issues-row-buttons' });
 
     const editButton = buttonGroup.createEl('button', {
-      cls: 'obsidian-issues-edit-button mod-secondary',
-      title: 'Edit issue',
+      cls: 'obsidian-issues-edit-button',
+      type: 'button',
+      attr: { 'aria-label': `Edit ${issue.title}` },
     });
     setIcon(editButton, 'pencil');
     editButton.addEventListener('click', (e: MouseEvent) => {
@@ -589,7 +940,8 @@ export class IssuesView extends ItemView {
 
     const deleteButton = buttonGroup.createEl('button', {
       cls: 'obsidian-issues-delete-button mod-warning',
-      title: 'Delete issue',
+      type: 'button',
+      attr: { 'aria-label': `Delete ${issue.title}` },
     });
     setIcon(deleteButton, 'trash-2');
     deleteButton.addEventListener('click', (e: MouseEvent) => {
@@ -598,67 +950,106 @@ export class IssuesView extends ItemView {
     });
 
     const meta = row.createDiv({ cls: 'obsidian-issues-meta' });
-    meta.createSpan({ text: issue.id });
+    meta.createSpan({ text: shortIssueId(issue.id), cls: 'obsidian-issues-issue-id' });
     if (issue.project) {
-      meta.createSpan({ text: issue.project });
+      meta.createSpan({ text: issue.project, cls: 'obsidian-issues-project' });
     }
-    if (issue.labels.length > 0) {
-      const labelsContainer = meta.createDiv({
-        cls: 'obsidian-issues-labels',
+    this.renderLabels(meta, issue);
+    this.renderDue(meta, issue);
+    this.renderSourceLink(meta, issue);
+
+    row.addEventListener('click', () => {
+      void this.openIssue(issue);
+    });
+  }
+
+  private renderLabels(meta: HTMLElement, issue: Issue): void {
+    if (issue.labels.length === 0) return;
+    const labelsContainer = meta.createDiv({ cls: 'obsidian-issues-labels' });
+    for (const label of issue.labels) {
+      const tag = labelsContainer.createSpan({
+        text: label,
+        cls: 'obsidian-issues-label',
       });
-      for (const label of issue.labels) {
-        const color = getLabelColor(label);
-        const tag = labelsContainer.createSpan({
-          text: label,
-          cls: 'obsidian-issues-label',
-        });
-        tag.style.backgroundColor = color;
-        tag.style.color = getLabelTextColor(color);
-      }
+      applyLabelColor(tag, label);
     }
-    if (issue.due) {
+  }
+
+  /**
+   * A malformed `due:` value used to render as the literal string
+   * "Due Invalid date"; it is now flagged as such and styled as an error.
+   *
+   * Urgency colouring (amber today, red overdue) only applies while the issue
+   * is still actionable — a closed issue's deadline is history, so it stays
+   * muted rather than shouting at the reader.
+   */
+  private renderDue(meta: HTMLElement, issue: Issue): void {
+    const variant = dueVariant(issue.due, issue.status === 'closed');
+    if (variant === 'none') return;
+
+    if (variant === 'invalid') {
       meta.createSpan({
-        text: `Due ${parseDueDate(issue.due).format('DD/MM/YYYY')}`,
-        cls: 'obsidian-issues-due',
+        text: `Due date unreadable: ${issue.due}`,
+        cls: 'obsidian-issues-due is-invalid',
+        attr: { title: 'Expected DD/MM/YYYY or YYYY-MM-DD' },
       });
-    }
-    if (issue.source) {
-      const sourceLink = meta.createEl('a', {
-        text: issue.source,
-        cls: 'obsidian-issues-source-link',
-      });
-      sourceLink.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const sourceFile = this.app.vault.getAbstractFileByPath(issue.source);
-        if (sourceFile instanceof TFile) {
-          void this.app.workspace.getLeaf(false).openFile(sourceFile);
-        } else {
-          new Notice('Note not found.');
-        }
-      });
+      return;
     }
 
-    const openIssue = (): void => {
-      void this.app.workspace.getLeaf(false).openFile(issue.file);
-    };
+    const display = toDisplayDate(issue.due);
+    const label =
+      variant === 'today'
+        ? `Due today · ${display}`
+        : variant === 'overdue'
+          ? `Overdue · ${display}`
+          : `Due ${display}`;
 
-    row.addEventListener('click', openIssue);
-    row.addEventListener('keydown', (event: KeyboardEvent) => {
-      if (event.key === 'Enter' || event.key === ' ') {
-        event.preventDefault();
-        openIssue();
+    meta.createSpan({
+      text: label,
+      cls: `obsidian-issues-due is-${variant}`,
+      attr:
+        variant === 'done' && dueState(issue.due) === 'overdue'
+          ? { title: 'Was past its due date when closed' }
+          : {},
+    });
+  }
+
+  private renderSourceLink(meta: HTMLElement, issue: Issue): void {
+    if (!issue.source) return;
+    const name = issue.source.replace(/\.md$/, '').split('/').pop() ?? issue.source;
+    const sourceLink = meta.createEl('a', {
+      text: name,
+      cls: 'obsidian-issues-source-link',
+      attr: { href: '#', title: issue.source, 'aria-label': `Open source note ${name}` },
+    });
+    sourceLink.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const sourceFile = this.app.vault.getAbstractFileByPath(issue.source);
+      if (sourceFile instanceof TFile) {
+        void this.app.workspace.getLeaf(false).openFile(sourceFile);
+      } else {
+        new Notice('Source note not found.');
       }
     });
   }
 
   private applyFilters(issues: Issue[]): Issue[] {
+    const query = this.filters.search.trim().toLowerCase();
+
     return issues.filter((issue) => {
-      if (
-        this.filters.search &&
-        !issue.title.toLowerCase().includes(this.filters.search.toLowerCase()) &&
-        !issue.body.toLowerCase().includes(this.filters.search.toLowerCase())
-      ) {
-        return false;
+      if (query.length > 0) {
+        const haystack = [
+          issue.title,
+          issue.body,
+          issue.project,
+          shortIssueId(issue.id),
+          issue.id,
+          ...issue.labels,
+        ]
+          .join('\n')
+          .toLowerCase();
+        if (!haystack.includes(query)) return false;
       }
       if (this.filters.status.length > 0 && !this.filters.status.includes(issue.status)) {
         return false;
@@ -685,41 +1076,61 @@ export class IssuesView extends ItemView {
     return [...issues].sort((a, b) => {
       let compareValue = 0;
 
-      if (sortBy === 'created' || sortBy === 'due') {
-        const aVal = issueField(a, sortBy) || '';
-        const bVal = issueField(b, sortBy) || '';
-        compareValue = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
-      } else if (sortBy === 'priority') {
-        const aIdx = ISSUE_PRIORITIES.indexOf(a.priority);
-        const bIdx = ISSUE_PRIORITIES.indexOf(b.priority);
-        compareValue = aIdx - bIdx;
+      if (sortBy === 'due') {
+        // Undated issues sort last in *both* directions, so this comparison
+        // deliberately happens outside the direction multiplier.
+        const aEmpty = toIsoDate(a.due).length === 0;
+        const bEmpty = toIsoDate(b.due).length === 0;
+        if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+        compareValue = compareDueDates(a.due, b.due);
+      } else if (sortBy === 'created') {
+        compareValue = compareIsoDates(a.created, b.created);
+      } else {
+        compareValue =
+          ISSUE_PRIORITIES.indexOf(a.priority) - ISSUE_PRIORITIES.indexOf(b.priority);
       }
 
       if (compareValue === 0) {
-        compareValue = a.id.localeCompare(b.id, undefined, { numeric: true });
+        return a.id.localeCompare(b.id, undefined, { numeric: true }) * multiplier;
       }
 
       return compareValue * multiplier;
     });
   }
 
+  private async openIssue(issue: Issue): Promise<void> {
+    await this.app.workspace.getLeaf(false).openFile(issue.file);
+  }
+
   private async deleteIssue(issue: Issue): Promise<void> {
+    if (this.host.settings.confirmDelete) {
+      const confirmed = await ConfirmModal.show(this.app, {
+        title: 'Delete issue',
+        message: `Move “${issue.title}” (${shortIssueId(issue.id)}) to the trash?`,
+        confirmLabel: 'Delete',
+        destructive: true,
+      });
+      if (!confirmed) return;
+    }
+
     try {
       await this.issueService.unlinkIssueFromNote(issue.id, issue.source);
       await this.issueService.deleteIssue(issue.file);
-      await this.refresh();
+      new Notice(`Deleted ${issue.file.basename}`);
+      await this.reload();
     } catch (error) {
       console.error('Obsidian Issues: failed to delete issue', error);
       new Notice('Could not delete issue. Check the developer console.');
     }
   }
 
-  private async toggleStatus(issue: Issue): Promise<void> {
+  private async cycleStatus(issue: Issue): Promise<void> {
     try {
-      await this.issueService.toggleIssueStatus(issue.file);
-      await this.refresh();
+      const status = await this.issueService.cycleIssueStatus(issue.file);
+      new Notice(`${shortIssueId(issue.id)} → ${ISSUE_STATUS_LABELS[status].toLowerCase()}`);
+      await this.reload();
     } catch (error) {
-      console.error('Obsidian Issues: failed to toggle status', error);
+      console.error('Obsidian Issues: failed to change status', error);
       new Notice('Could not update issue. Check the developer console.');
     }
   }
@@ -727,10 +1138,12 @@ export class IssuesView extends ItemView {
   private async updateIssueStatus(
     issue: Issue,
     status: IssueStatus,
+    keepFocus = false,
   ): Promise<void> {
     try {
+      if (keepFocus) this.pendingFocusId = issue.id;
       await this.issueService.updateIssue(issue.file, { status });
-      await this.refresh();
+      await this.reload();
     } catch (error) {
       console.error('Obsidian Issues: failed to update issue status', error);
       new Notice('Could not update issue. Check the developer console.');
@@ -738,42 +1151,42 @@ export class IssuesView extends ItemView {
   }
 
   private async editIssue(issue: Issue): Promise<void> {
-    const [knownLabels, knownProjects] = await Promise.all([
-      this.issueService.getAllLabels(),
-      this.issueService.getAllProjects(),
-    ]);
+    try {
+      const [knownLabels, knownProjects] = await Promise.all([
+        this.issueService.getAllLabels(),
+        this.issueService.getAllProjects(),
+      ]);
 
-    new IssueModal(this.app, {
-      title: 'Edit issue',
-      initial: issue,
-      knownLabels,
-      knownProjects,
-      statusEditable: true,
-      submitLabel: 'Save',
-      onSubmit: async (data) => {
-        try {
+      new IssueModal(this.app, {
+        title: `Edit ${shortIssueId(issue.id)}`,
+        initial: issue,
+        knownLabels,
+        knownProjects,
+        statusEditable: true,
+        submitLabel: 'Save',
+        onSubmit: async (data) => {
           await this.issueService.updateIssue(issue.file, data);
-        } catch (error) {
-          console.error('Obsidian Issues: failed to update issue', error);
-          new Notice('Could not save issue. Check the developer console.');
-        }
-      },
-    }).open();
+          await this.reload();
+        },
+      }).open();
+    } catch (error) {
+      console.error('Obsidian Issues: failed to open edit modal', error);
+      new Notice('Could not open issue. Check the developer console.');
+    }
   }
 }
 
-function parseDueDate(value: string): moment.Moment {
-  const parsed = moment(value, 'DD/MM/YYYY', true);
-  if (parsed.isValid()) return parsed;
-  return moment(value, 'YYYY-MM-DD', true);
+const STATUS_GLYPHS: Record<IssueStatus, string> = {
+  open: '●',
+  'in-progress': '◐',
+  closed: '○',
+};
+
+function toggleInArray<T>(list: T[], value: T): T[] {
+  return list.includes(value) ? list.filter((item) => item !== value) : [...list, value];
 }
 
-function normalizeDate(value: string): string {
-  const match = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (match) return `${match[3]}-${match[2]}-${match[1]}`;
-  return value;
-}
-
-function issueField(issue: Issue, field: 'created' | 'due'): string {
-  return field === 'created' ? issue.created : normalizeDate(issue.due);
+function shortIssueId(id: string): string {
+  const match = id.match(/^ISSUE-(\d+)$/);
+  return match && match[1] ? `#${parseInt(match[1], 10)}` : id;
 }
