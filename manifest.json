@@ -1,7 +1,7 @@
 {
   "id": "vault-issues",
   "name": "Vault Issues",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "minAppVersion": "1.7.2",
   "description": "GitHub Issues-inspired tracker with Kanban board, labels, priorities, and note-to-note linking.",
   "author": "Andres Albert Aizic",
