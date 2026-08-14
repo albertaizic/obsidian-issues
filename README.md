@@ -19,13 +19,20 @@ src/
   tag-input.ts       Reusable tag-input component for labels
   labels.ts          Label colour assignment
   dates.ts           Date parsing, formatting, and comparison helpers
-  constants.ts       Status/priority enums, field order, folder name
+  constants.ts       Status/priority enums, field order, folder/prefix defaults
   types.ts           Issue, IssueData, IssueStatus, IssuePriority types
-  settings.ts        Settings interface, defaults, settings tab
+  settings.ts        Settings tab (re-exports config from config/settings.ts)
   confirm-modal.ts   Reusable confirmation dialog
+config/
+  settings.ts        Settings interface, defaults, normalisation, view-host contract
+filters/
+  issue-filter.ts    Search + multi-select filtering (status, project, priority, labels)
+  issue-sort.ts      Sort logic by created date, due date, or priority
+utils/
+  issue-id.ts        Prefix normalisation, filename pattern matching, next-ID computation
 ```
 
-`styles.css` is loaded by Obsidian alongside `main.js` and `manifest.json`. Source in `src/ts` is bundled with esbuild into `main.js` at the plugin root.
+`styles.css` is loaded by Obsidian alongside `main.js` and `manifest.json`. Source in `src/` is bundled with esbuild into `main.js` at the plugin root.
 
 ## Milestone: v0.1 — starter
 
@@ -194,6 +201,35 @@ created: 2026-08-13
 - All colours now come from Obsidian theme variables, so the plugin follows light and dark themes.
 - New settings tab: default layout, default sort order, and delete confirmation.
 
+## Milestone: v0.6.0 — configurability & migration
+
+This release makes Vault Issues configurable for different vault structures and prepares the plugin
+for public distribution.
+
+Added:
+
+- **Configurable issues folder** — set any folder name in settings; the plugin creates it and stores
+  issues there. The default remains `" Issues"` (with a leading space so it sorts to the top of the
+  file list). Dot-prefixed names are rejected because Obsidian's Vault API silently ignores them.
+- **Configurable issue ID prefix** — choose a filename prefix such as `ISSUE`, `TASK`, or `BUG`.
+  The input is normalised to uppercase alphanumeric + underscores (`task` → `TASK`, `issue-name` →
+  `ISSUE_NAME`), and issue files are named `<PREFIX>-001.md`, `<PREFIX>-002.md`, …
+- **Default priority setting** — pick the priority (`low` / `medium` / `high` / `critical`)
+  pre-filled when creating a new issue.
+- **Persistent default layout and sorting** — the default view (list or Kanban) and default sort
+  order now live in settings and survive restarts, instead of being reset each session.
+- **Improved migration of issues created by earlier versions** — existing issues are migrated
+  automatically from legacy folder locations (`.Issues`, `Issues`, and the v0.5 default `" Issues"`)
+  into the configured issues folder on first load. Duplicates at the destination are skipped and
+  the source file removed, leaving no orphans.
+
+Under the hood, v0.6 also refactors core logic into testable modules: settings normalisation
+(`config/settings.ts`), issue filtering (`filters/issue-filter.ts`), sorting (`filters/issue-sort.ts`),
+and ID utilities (`utils/issue-id.ts`). A comprehensive unit-test suite was added covering all of the
+above.
+
+![v0.6 settings tab](screenshots/v0.6-settings-view.png)
+
 ## Development setup
 
 Use a separate development vault. A convenient layout is:
@@ -217,7 +253,7 @@ In Obsidian:
 1. Open the `ObsidianDev` vault.
 2. Go to **Settings → Community plugins**.
 3. Turn off Restricted mode if necessary.
-4. Enable **Obsidian Issues**.
+4. Enable **Vault Issues**.
 5. Open the Command Palette and run **Open issues**.
 6. Click **+ New issue**.
 
@@ -242,7 +278,21 @@ on first load.
 npm test
 ```
 
-Runs the date-handling unit tests with Node's built-in test runner (requires Node 22+).
+Runs the unit-test suite with Node's built-in test runner (requires Node 22+).
+
+Coverage added in v0.6:
+
+- **Settings** (`tests/settings.test.ts`) — `normalizeSettings()` coercion: dot-prefixed folders,
+  whitespace, invalid priorities / view modes / sort keys, and prefix uppercasing.
+- **Issue IDs** (`tests/issue-id.test.ts`) — filename pattern matching, prefix normalisation,
+  `shortIssueId`, and next-ID computation with configurable prefixes.
+- **Filtering** (`tests/filtering.test.ts`) — search across titles/bodies/labels/projects/IDs,
+  multi-select status / project / priority / label filters, and `hasActiveFilters`.
+- **Sorting** (`tests/sorting.test.ts`) — created / due / priority ordering, undated-last
+  behaviour, tie-breaking by numeric ID, and malformed-date handling.
+- **Status & frontmatter** (`tests/status.test.ts`, `tests/frontmatter.test.ts`) — status cycling,
+  fallback defaults for unknown values, and date validation including impossible dates like
+  `31/02/2026`.
 
 ## Production build
 
@@ -250,7 +300,8 @@ Runs the date-handling unit tests with Node's built-in test runner (requires Nod
 npm run build
 ```
 
-The build produces `main.js` in the repository root. Obsidian loads the plugin from `main.js`, `manifest.json`, and `styles.css`.
+The build produces `main.js` in the repository root. Obsidian loads the plugin from `main.js`,
+`manifest.json`, and `styles.css`.
 
 **Editing the source is not enough — Obsidian only ever runs `main.js`.** After changing anything in
 `src/` or `styles.css`, rebuild and then reload the plugin (disable and re-enable it under
@@ -269,6 +320,10 @@ It produces a larger, unminified `main.js` with identical behaviour. `npm run bu
 supported path.
 
 ## Screenshots
+
+### v0.6.0
+
+![v0.6 settings tab](screenshots/v0.6-settings-view.png)
 
 ### v0.5.0
 
@@ -306,4 +361,5 @@ supported path.
 - **v0.4** ~completed — Kanban/dashboard
 - **v0.5** ~completed — Kanban and knowledge-base integration
 - **v0.5** ~completed — note integration, commands, settings, accessibility and reliability pass
+- **v0.6** ~completed — configurable issues folder, ID prefix, and default priority; migration; unit tests
 - **v1.0** — polished release, expanded test coverage, documentation, demo GIF, GitHub release
