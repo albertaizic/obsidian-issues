@@ -223,6 +223,11 @@ Added:
   into the configured issues folder on first load. Duplicates at the destination are skipped and
   the source file removed, leaving no orphans.
 
+Under the hood, v0.6 also refactors core logic into testable modules: settings normalisation
+(`config/settings.ts`), issue filtering (`filters/issue-filter.ts`), sorting (`filters/issue-sort.ts`),
+and ID utilities (`utils/issue-id.ts`). A comprehensive unit-test suite was added covering all of the
+above.
+
 ![v0.6 settings tab](screenshots/v0.6-settings-view.png)
 
 ## Milestone: v0.7.0 — reliability & architecture
@@ -233,8 +238,6 @@ functionality safer, easier to test, and easier to extend.
 
 Added:
 
-- **Expanded automated test suite** — 109 unit tests using Node's built-in test runner, covering issue
-  IDs, statuses, sorting, filtering, settings normalisation, and frontmatter parsing.
 - **Automated tests in GitHub Actions** — the CI pipeline now runs `npm test` on Node.js 20, 22, and 24,
   catching regressions before release.
 
@@ -246,6 +249,8 @@ Improved:
   (`config/settings.ts`).
 - **Improved separation between UI, filtering, persistence, and issue-management logic** — pure logic
   is extracted from Obsidian-dependent code, making it independently testable.
+- **Expanded automated test suite** — 109 unit tests using Node's built-in test runner, covering issue
+  IDs, statuses, sorting, filtering, settings normalisation, and frontmatter parsing.
 - **Improved handling of malformed or incomplete Markdown issue files** — invalid frontmatter values
   fall back to safe defaults rather than breaking the view; impossible dates and unknown statuses are
   handled gracefully.
@@ -302,7 +307,7 @@ npm test
 
 Runs the unit-test suite with Node's built-in test runner (requires Node 22+).
 
-Coverage added in v0.7:
+Coverage added in v0.6, expanded in v0.7 with CI integration:
 
 - **Settings** (`tests/settings.test.ts`) — `normalizeSettings()` coercion: dot-prefixed folders,
   whitespace, invalid priorities / view modes / sort keys, and prefix uppercasing.
@@ -343,7 +348,7 @@ supported path.
 
 ## Screenshots
 
-### v0.7.0
+### v0.6.0
 
 ![v0.6 settings tab](screenshots/v0.6-settings-view.png)
 
@@ -383,6 +388,6 @@ supported path.
 - **v0.4** ~completed — Kanban/dashboard
 - **v0.5** ~completed — Kanban and knowledge-base integration
 - **v0.5** ~completed — note integration, commands, settings, accessibility and reliability pass
-- **v0.6** ~completed — configurable issues folder, ID prefix, and default priority; migration
+- **v0.6** ~completed — configurable issues folder, ID prefix, and default priority; migration; unit tests
 - **v0.7** ~completed — reliability & architecture: expanded tests, CI test step, module refactor
 - **v1.0** — polished release, expanded test coverage, documentation, demo GIF, GitHub release
