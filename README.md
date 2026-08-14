@@ -23,13 +23,13 @@ src/
   types.ts           Issue, IssueData, IssueStatus, IssuePriority types
   settings.ts        Settings tab (re-exports config from config/settings.ts)
   confirm-modal.ts   Reusable confirmation dialog
-config/
-  settings.ts        Settings interface, defaults, normalisation, view-host contract
-filters/
-  issue-filter.ts    Search + multi-select filtering (status, project, priority, labels)
-  issue-sort.ts      Sort logic by created date, due date, or priority
-utils/
-  issue-id.ts        Prefix normalisation, filename pattern matching, next-ID computation
+  config/
+    settings.ts        Settings interface, defaults, normalisation, view-host contract
+  filters/
+    issue-filter.ts    Search + multi-select filtering (status, project, priority, labels)
+    issue-sort.ts      Sort logic by created date, due date, or priority
+  utils/
+    issue-id.ts        Prefix normalisation, filename pattern matching, next-ID computation
 ```
 
 `styles.css` is loaded by Obsidian alongside `main.js` and `manifest.json`. Source in `src/` is bundled with esbuild into `main.js` at the plugin root.
@@ -224,8 +224,8 @@ Added:
   the source file removed, leaving no orphans.
 
 Under the hood, v0.6 also refactors core logic into testable modules: settings normalisation
-(`config/settings.ts`), issue filtering (`filters/issue-filter.ts`), sorting (`filters/issue-sort.ts`),
-and ID utilities (`utils/issue-id.ts`). A comprehensive unit-test suite was added covering all of the
+(`src/config/settings.ts`), issue filtering (`src/filters/issue-filter.ts`), sorting (`src/filters/issue-sort.ts`),
+and ID utilities (`src/utils/issue-id.ts`). A comprehensive unit-test suite was added covering all of the
 above.
 
 ![v0.6 settings tab](screenshots/v0.6-settings-view.png)
@@ -244,9 +244,9 @@ Added:
 Improved:
 
 - **Refactored the Issues view into smaller, focused modules** — the monolithic `issues-view.ts` is
-  split into dedicated modules for filtering (`filters/issue-filter.ts`), sorting
-  (`filters/issue-sort.ts`), ID utilities (`utils/issue-id.ts`), and settings configuration
-  (`config/settings.ts`).
+  split into dedicated modules for filtering (`src/filters/issue-filter.ts`), sorting
+  (`src/filters/issue-sort.ts`), ID utilities (`src/utils/issue-id.ts`), and settings configuration
+  (`src/config/settings.ts`).
 - **Improved separation between UI, filtering, persistence, and issue-management logic** — pure logic
   is extracted from Obsidian-dependent code, making it independently testable.
 - **Expanded automated test suite** — 109 unit tests using Node's built-in test runner, covering issue
