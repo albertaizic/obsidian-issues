@@ -1,34 +1,43 @@
-export const LABEL_COLORS: readonly string[] = [
-  '#e11d21', '#0e8048', '#1d76db', '#8250df', '#b97011',
-  '#238636', '#23658a', '#5a72c4', '#922b1f', '#6e7683',
-];
+/**
+ * Size of the label palette. The colours themselves live in `styles.css` as
+ * `.is-label-color-0` … `.is-label-color-9`; nothing here knows what they are.
+ */
+export const LABEL_COLOR_COUNT = 10;
 
-export function getLabelColor(name: string): string {
+const LABEL_COLOR_CLASS_PREFIX = 'is-label-color-';
+
+/**
+ * Maps a label name onto a palette slot. The hash is deliberately unchanged
+ * from the version that returned a hex value directly, so every existing
+ * label keeps the colour it has always had.
+ */
+export function getLabelColorIndex(name: string): number {
   let hash = 0;
   for (let i = 0; i < name.length; i++) {
     hash = ((hash << 5) - hash + name.charCodeAt(i)) | 0;
   }
-  const index = Math.abs(hash) % LABEL_COLORS.length;
-  return LABEL_COLORS[index] ?? LABEL_COLORS[0] ?? '#6e7683';
+  return Math.abs(hash) % LABEL_COLOR_COUNT;
 }
 
-export function getLabelTextColor(bg: string): string {
-  const r = Number.parseInt(bg.slice(1, 3), 16);
-  const g = Number.parseInt(bg.slice(3, 5), 16);
-  const b = Number.parseInt(bg.slice(5, 7), 16);
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-  return luminance > 0.5 ? '#1a1a1a' : '#ffffff';
+export function getLabelColorClass(name: string): string {
+  return `${LABEL_COLOR_CLASS_PREFIX}${getLabelColorIndex(name)}`;
 }
 
 /**
- * Applies a label's colour through CSS custom properties rather than by
- * assigning `style.backgroundColor` directly. Obsidian's plugin guidelines
- * disallow setting styles from JavaScript, but custom properties are the
- * sanctioned escape hatch for values that can only be computed at runtime —
- * and it lets themes override the palette in CSS.
+ * Tags an element with its palette class.
+ *
+ * Obsidian's plugin guidelines disallow assigning styles from JavaScript, and
+ * that includes writing CSS custom properties onto `el.style` — which is what
+ * this used to do. The class is the only thing decided at runtime; the colour
+ * pair behind it is declared in `styles.css`, so themes and snippets can
+ * restyle the palette.
+ *
+ * Any previously applied palette class is cleared first, so re-applying to the
+ * same element replaces the colour rather than stacking a second one.
  */
 export function applyLabelColor(el: HTMLElement, name: string): void {
-  const background = getLabelColor(name);
-  el.style.setProperty('--issue-label-bg', background);
-  el.style.setProperty('--issue-label-fg', getLabelTextColor(background));
+  for (let i = 0; i < LABEL_COLOR_COUNT; i++) {
+    el.removeClass(`${LABEL_COLOR_CLASS_PREFIX}${i}`);
+  }
+  el.addClass(getLabelColorClass(name));
 }

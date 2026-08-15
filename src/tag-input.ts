@@ -19,12 +19,6 @@ export class TagInput {
   private suggestions: string[] = [];
   private activeIndex = -1;
 
-  private readonly handleScroll = (): void => {
-    if (!this.suggestionsEl.classList.contains('is-hidden')) {
-      this.positionSuggestions();
-    }
-  };
-
   /**
    * `mousedown` on a suggestion is prevented, so a blur here always means the
    * user moved focus somewhere else entirely — previously the floating list
@@ -66,6 +60,9 @@ export class TagInput {
     this.inputEl.setAttribute('aria-expanded', 'false');
     this.inputEl.setAttribute('aria-autocomplete', 'list');
 
+    // A sibling of the tags wrapper, inside the `position: relative`
+    // container: that makes `containerEl` the suggestion list's containing
+    // block, so it sits under the field by CSS alone.
     this.suggestionsEl = containerEl.createDiv({
       cls: 'obsidian-issues-tag-input-suggestions is-hidden',
     });
@@ -75,18 +72,14 @@ export class TagInput {
     this.inputEl.addEventListener('input', () => this.handleInput());
     this.inputEl.addEventListener('focus', () => this.handleInput());
     this.inputEl.addEventListener('blur', this.handleBlur);
-    this.containerEl.addEventListener('scroll', this.handleScroll);
     document.addEventListener('pointerdown', this.handleOutsidePointerDown, true);
-    window.addEventListener('resize', this.handleScroll);
 
     this.renderTags();
   }
 
   destroy(): void {
     this.inputEl.removeEventListener('blur', this.handleBlur);
-    this.containerEl.removeEventListener('scroll', this.handleScroll);
     document.removeEventListener('pointerdown', this.handleOutsidePointerDown, true);
-    window.removeEventListener('resize', this.handleScroll);
   }
 
   getValue(): string[] {
@@ -169,13 +162,6 @@ export class TagInput {
     }
 
     this.tagsWrapper.appendChild(existingInput);
-    this.positionSuggestions();
-  }
-
-  private positionSuggestions(): void {
-    const rect = this.inputEl.getBoundingClientRect();
-    this.suggestionsEl.style.setProperty('--suggestions-left', `${rect.left}px`);
-    this.suggestionsEl.style.setProperty('--suggestions-top', `${rect.bottom + 4}px`);
   }
 
   private renderSuggestions(): void {
@@ -189,7 +175,6 @@ export class TagInput {
 
     this.suggestionsEl.removeClass('is-hidden');
     this.inputEl.setAttribute('aria-expanded', 'true');
-    this.positionSuggestions();
 
     for (let i = 0; i < this.suggestions.length; i++) {
       const label = this.suggestions[i]!;

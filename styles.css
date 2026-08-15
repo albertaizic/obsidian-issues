@@ -6,6 +6,41 @@
    themes and snippets can override them.
    ========================================================================== */
 
+/* ------------------------------------------------------- label palette -- */
+
+/* The ten label colours. `getLabelColorIndex()` in `src/labels.ts` hashes a
+   label name onto one of these slots and the element gets the matching
+   `.is-label-color-N` class — no colour is ever assigned from JavaScript.
+   Declared on `body` rather than inside `.obsidian-issues-view` because
+   labels also render in modals, which Obsidian mounts outside the view.
+   Override any of these in a theme or snippet to restyle the palette. */
+body {
+  --issue-label-color-0: #e11d21;
+  --issue-label-color-1: #0e8048;
+  --issue-label-color-2: #1d76db;
+  --issue-label-color-3: #8250df;
+  --issue-label-color-4: #b97011;
+  --issue-label-color-5: #238636;
+  --issue-label-color-6: #23658a;
+  --issue-label-color-7: #5a72c4;
+  --issue-label-color-8: #922b1f;
+  --issue-label-color-9: #6e7683;
+  /* Every colour above sits below the 0.5 relative-luminance threshold, so a
+     single light foreground stays readable on all ten in both themes. */
+  --issue-label-text: #ffffff;
+}
+
+.is-label-color-0 { --issue-label-bg: var(--issue-label-color-0); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-1 { --issue-label-bg: var(--issue-label-color-1); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-2 { --issue-label-bg: var(--issue-label-color-2); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-3 { --issue-label-bg: var(--issue-label-color-3); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-4 { --issue-label-bg: var(--issue-label-color-4); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-5 { --issue-label-bg: var(--issue-label-color-5); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-6 { --issue-label-bg: var(--issue-label-color-6); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-7 { --issue-label-bg: var(--issue-label-color-7); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-8 { --issue-label-bg: var(--issue-label-color-8); --issue-label-fg: var(--issue-label-text); }
+.is-label-color-9 { --issue-label-bg: var(--issue-label-color-9); --issue-label-fg: var(--issue-label-text); }
+
 .obsidian-issues-view {
   --issue-due-today: var(--color-yellow, #d9a300);
   --issue-in-progress: var(--color-orange, #d97706);
@@ -651,33 +686,32 @@
 
 /* ---------------------------------------------------------------- forms -- */
 
+/* No `overflow-x: hidden` on the form or the modal content area: a clipped
+   axis forces the *other* axis to compute to `auto`, which would turn these
+   into scroll containers and cut off the label suggestion list that now drops
+   out of the Labels field. `min-width: 0` is the actual fix for the long-value
+   overflow those rules were guarding against — flex items default to
+   `min-width: auto` and refuse to shrink below their content. */
 .obsidian-issues-form {
   display: flex;
   flex-direction: column;
   gap: var(--size-4-3);
-  overflow-x: hidden;
+  min-width: 0;
 }
 
-.obsidian-issues-modal-content {
-  overflow-x: hidden;
-}
-
-/* Prevent horizontal overflow in the modal itself */
 .modal.obsidian-issues-modal-content {
   max-width: 100vw;
-  overflow-x: hidden;
 }
 
-/* Constrain the Obsidian modal content area when our modal is open */
 .modal.obsidian-issues-modal-content .modal-content {
   max-width: 100%;
-  overflow-x: hidden;
 }
 
 .obsidian-issues-field {
   display: flex;
   flex-direction: column;
   gap: var(--size-4-1);
+  min-width: 0;
 }
 
 .obsidian-issues-field-label {
@@ -867,10 +901,15 @@
   height: 11px;
 }
 
+/* Anchored to `.obsidian-issues-tag-input`, which is `position: relative` and
+   therefore the containing block. This replaces the old `position: fixed`
+   list whose coordinates were measured and written from JavaScript on every
+   render, scroll and resize. */
 .obsidian-issues-tag-input-suggestions {
-  position: fixed;
-  left: var(--suggestions-left, 0);
-  top: var(--suggestions-top, 0);
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
   z-index: var(--layer-menu, 1000);
   display: flex;
   flex-direction: column;
@@ -882,7 +921,6 @@
   box-shadow: var(--issue-shadow);
   max-height: 200px;
   overflow-y: auto;
-  max-width: calc(100vw - 2rem);
 }
 
 .obsidian-issues-tag-input-suggestions.is-hidden {
