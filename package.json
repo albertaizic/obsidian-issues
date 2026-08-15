@@ -1,6 +1,6 @@
 {
   "name": "obsidian-issues",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "GitHub Issues-inspired issue tracking inside Obsidian, backed by Markdown files.",
   "main": "main.js",
   "scripts": {
