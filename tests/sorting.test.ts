@@ -137,4 +137,29 @@ describe('sortIssues', () => {
       );
     });
   });
+
+  describe('created date with empty dates', () => {
+    const issues = [
+      makeIssue({ id: 'ISSUE-001', created: '2026-08-10' }),
+      makeIssue({ id: 'ISSUE-002', created: '' }), // empty
+      makeIssue({ id: 'ISSUE-003', created: '2026-08-05' }),
+      makeIssue({ id: 'ISSUE-004', created: 'not a date' }), // malformed -> empty
+    ];
+
+    it('sorts ascending (oldest first), empty/malformed last', () => {
+      const result = sortIssues(issues, 'created', 'asc');
+      assert.deepEqual(
+        result.map((i) => i.id),
+        ['ISSUE-003', 'ISSUE-001', 'ISSUE-002', 'ISSUE-004'],
+      );
+    });
+
+    it('sorts descending (newest first), empty/malformed last', () => {
+      const result = sortIssues(issues, 'created', 'desc');
+      assert.deepEqual(
+        result.map((i) => i.id),
+        ['ISSUE-001', 'ISSUE-003', 'ISSUE-002', 'ISSUE-004'],
+      );
+    });
+  });
 });

@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Obsidian Issues
+   Vault Issues
    Colours come from Obsidian's theme variables so the plugin follows the
    user's light/dark theme. The two values that have no theme equivalent
    (the "due today" amber and the in-progress hue) are declared once here so
@@ -225,6 +225,15 @@
   box-shadow: none;
 }
 
+/* Push the sticky footer panel lower, away from the last setting row. */
+/* A `position: sticky` element still occupies its own space in normal flow —
+   unlike `position: fixed`, it cannot cover the content above it. The large
+   reserve that used to sit here was compensating for a problem that does not
+   exist, and only produced a long empty gap at the end of the settings. */
+.obsidian-issues-settings {
+  padding-bottom: var(--size-4-4);
+}
+
 .obsidian-issues-clear-all {
   white-space: nowrap;
   font-size: var(--font-ui-smaller);
@@ -232,11 +241,14 @@
   box-shadow: none;
   color: var(--text-muted);
   border: 1px solid var(--background-modifier-border);
+  opacity: 0.4;
+  transition: opacity 0.15s ease;
 }
 
-.obsidian-issues-clear-all:hover {
-  color: var(--text-normal);
-  background: var(--background-modifier-hover);
+.obsidian-issues-toolbar.is-active-filters .obsidian-issues-clear-all,
+.obsidian-issues-clear-all:hover,
+.obsidian-issues-clear-all:focus-visible {
+  opacity: 1;
 }
 
 /* ----------------------------------------------------------- list rows -- */
@@ -286,22 +298,44 @@
   gap: var(--size-4-2);
 }
 
+/* Status toggle.
+   `width`/`height` alone are not enough to keep this circular: it is a flex
+   item, and Obsidian's base button styles contribute padding and a min-width
+   that let it stretch into an ellipse. Pinning `flex`, `min-width`, `padding`
+   and `aspect-ratio` together is what actually holds the 1:1 ratio. */
 .obsidian-issues-status-dot {
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  --issue-dot-size: 1.5em;
+  flex: 0 0 var(--issue-dot-size);
+  width: var(--issue-dot-size);
+  height: var(--issue-dot-size);
+  min-width: var(--issue-dot-size);
+  max-width: var(--issue-dot-size);
+  aspect-ratio: 1 / 1;
   padding: 0;
   margin: 0;
-  height: auto;
-  line-height: 1.4;
-  cursor: pointer;
-  flex-shrink: 0;
+  border: none;
+  border-radius: 50%;
+  box-shadow: none;
+  background: transparent;
   color: var(--interactive-accent);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  font-size: var(--font-ui-small);
+  overflow: hidden;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .obsidian-issues-status-dot:hover {
-  opacity: 0.7;
-  background: transparent;
+  background: var(--background-modifier-hover);
+  color: var(--interactive-accent-hover, var(--interactive-accent));
+}
+
+.obsidian-issues-status-dot:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 1px;
 }
 
 .obsidian-issues-status-dot.is-closed { color: var(--text-muted); }
@@ -621,6 +655,23 @@
   display: flex;
   flex-direction: column;
   gap: var(--size-4-3);
+  overflow-x: hidden;
+}
+
+.obsidian-issues-modal-content {
+  overflow-x: hidden;
+}
+
+/* Prevent horizontal overflow in the modal itself */
+.modal.obsidian-issues-modal-content {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Constrain the Obsidian modal content area when our modal is open */
+.modal.obsidian-issues-modal-content .modal-content {
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 .obsidian-issues-field {
@@ -651,6 +702,73 @@
   box-shadow: none;
   color: var(--text-muted);
   padding: 4px 8px;
+}
+
+/* --------------------------------------------------------- settings tab -- */
+
+.obsidian-issues-settings-input {
+  width: 100%;
+  /* A leading space is a legitimate folder name here, so show it clearly. */
+  font-family: var(--font-monospace);
+}
+
+.obsidian-issues-settings-error {
+  display: none;
+  flex-basis: 100%;
+  margin-top: var(--size-4-1);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  color: var(--text-error);
+  text-align: left;
+}
+
+.obsidian-issues-settings-error.is-visible {
+  display: block;
+}
+
+.obsidian-issues-settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--size-4-2);
+  margin-top: var(--size-4-6);
+  padding: var(--size-4-3) 0;
+  border-top: 1px solid var(--background-modifier-border);
+  /* Sticky so Apply stays reachable in a long settings pane. The opaque
+     background is what stops scrolled content showing through — no
+     `!important` needed, since nothing else sets a background on this
+     element; the earlier override was masking a `color-mix()` value that
+     resolved to a translucent colour. */
+  position: sticky;
+  bottom: 0;
+  background: var(--background-primary);
+  z-index: 2;
+}
+
+.obsidian-issues-settings-status {
+  flex: 1 1 220px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+
+.obsidian-issues-settings-status.is-dirty {
+  color: var(--text-accent);
+}
+
+.obsidian-issues-settings-status.is-error {
+  color: var(--text-error);
+}
+
+.obsidian-issues-settings-buttons {
+  display: flex;
+  gap: var(--size-4-2);
+  flex-shrink: 0;
+}
+
+.obsidian-issues-settings-buttons button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .obsidian-issues-field-warning {

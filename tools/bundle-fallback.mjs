@@ -9,13 +9,43 @@
  *   node tools/bundle-fallback.mjs
  */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { cpSync, mkdirSync, readFileSync, readdirSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const outDir = mkdtempSync(path.join(tmpdir(), 'obsidian-issues-'));
+// Staged inside the project, not in the OS temp dir: tsc resolves `obsidian`
+// (and its global DOM augmentations) through node_modules relative to the file
+// being compiled, so a copy outside the root fails to type-check.
+const work = path.join(root, '.bundle-tmp');
+const stageDir = path.join(work, 'src');
+const outDir = path.join(work, 'out');
+
+rmSync(work, { recursive: true, force: true });
+mkdirSync(outDir, { recursive: true });
+
+/*
+ * `src/` imports carry explicit `.ts` extensions so Node's
+ * --experimental-strip-types can run the tests straight against the sources.
+ * tsc accepts that only with `allowImportingTsExtensions`, which in turn
+ * forbids emitting. So the sources are staged into a temp copy with the
+ * extensions removed, and that copy is what gets compiled.
+ */
+function stageSources() {
+  cpSync(path.join(root, 'src'), stageDir, { recursive: true });
+  const rewrite = (dir) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        rewrite(full);
+      } else if (entry.name.endsWith('.ts')) {
+        const source = readFileSync(full, 'utf8');
+        writeFileSync(full, source.replace(/(from\s+'\.{1,2}\/[^']*?)\.ts'/g, "$1'"));
+      }
+    }
+  };
+  rewrite(stageDir);
+}
 
 const tsc = path.join(
   root,
@@ -26,11 +56,13 @@ const tsc = path.join(
 );
 
 try {
+  stageSources();
+
   execFileSync(
     process.execPath,
     [
       tsc,
-      path.join(root, 'src', 'main.ts'),
+      path.join(stageDir, 'main.ts'),
       '--outDir', outDir,
       '--module', 'commonjs',
       '--moduleResolution', 'node',
@@ -42,13 +74,25 @@ try {
     { stdio: 'inherit', cwd: root },
   );
 
-  const modules = readdirSync(outDir)
-    .filter((file) => file.endsWith('.js'))
-    .map((file) => ({
-      name: path.basename(file, '.js'),
-      code: readFileSync(path.join(outDir, file), 'utf8'),
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  // Emitted output mirrors the source tree, so modules are keyed by their
+  // path relative to the out dir ("config/settings", "utils/issue-id", ...).
+  const collect = (dir, prefix = '') => {
+    const found = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        found.push(...collect(full, `${prefix}${entry.name}/`));
+      } else if (entry.name.endsWith('.js')) {
+        found.push({
+          name: `${prefix}${path.basename(entry.name, '.js')}`,
+          code: readFileSync(full, 'utf8'),
+        });
+      }
+    }
+    return found;
+  };
+
+  const modules = collect(outDir).sort((a, b) => a.name.localeCompare(b.name));
 
   if (!modules.some((m) => m.name === 'main')) {
     throw new Error('tsc did not emit a main module');
@@ -73,25 +117,45 @@ var __obsidian = require('obsidian');
 var __modules = {};
 var __cache = {};
 
-function __require(id) {
-  if (id === 'obsidian') return __obsidian;
-  var key = String(id).replace(/^\\.\\//, '').replace(/\\.js$/, '');
+/* Resolves a relative specifier against the requesting module's directory. */
+function __resolve(baseDir, id) {
+  var parts = baseDir ? baseDir.split('/') : [];
+  var segments = String(id).replace(/\\.js$/, '').split('/');
+  for (var i = 0; i < segments.length; i++) {
+    var segment = segments[i];
+    if (segment === '' || segment === '.') continue;
+    if (segment === '..') parts.pop();
+    else parts.push(segment);
+  }
+  return parts.join('/');
+}
+
+function __makeRequire(fromKey) {
+  var slash = fromKey.lastIndexOf('/');
+  var baseDir = slash === -1 ? '' : fromKey.slice(0, slash);
+  return function (id) {
+    if (id === 'obsidian') return __obsidian;
+    return __load(__resolve(baseDir, id));
+  };
+}
+
+function __load(key) {
   if (Object.prototype.hasOwnProperty.call(__cache, key)) return __cache[key].exports;
   var factory = __modules[key];
-  if (!factory) throw new Error('Unknown module: ' + id);
+  if (!factory) throw new Error('Unknown module: ' + key);
   var module = { exports: {} };
   __cache[key] = module;
-  factory(module, module.exports, __require);
+  factory(module, module.exports, __makeRequire(key));
   return module.exports;
 }
 
 ${factories}
 
-module.exports = __require('main');
+module.exports = __load('main');
 `;
 
   writeFileSync(path.join(root, 'main.js'), bundle);
   console.log(`Wrote main.js (${(bundle.length / 1024).toFixed(1)} kB, ${modules.length} modules)`);
 } finally {
-  rmSync(outDir, { recursive: true, force: true });
+  rmSync(work, { recursive: true, force: true });
 }

@@ -10,10 +10,10 @@ import {
   ISSUE_PRIORITY_LABELS,
   ISSUE_STATUSES,
   ISSUE_STATUS_LABELS,
-} from './constants';
-import { isValidDate, toDisplayDate, toIsoDate } from './dates';
-import { TagInput } from './tag-input';
-import type { IssueData, IssuePriority, IssueStatus } from './types';
+} from './constants.ts';
+import { isValidDate, toDisplayDate, toIsoDate } from './dates.ts';
+import { TagInput } from './tag-input.ts';
+import type { IssueData, IssuePriority, IssueStatus } from './types.ts';
 
 export interface IssueModalOptions {
   title: string;
@@ -43,6 +43,9 @@ export class IssueModal extends Modal {
     const { contentEl } = this;
     this.titleEl.setText(this.options.title);
 
+    // Add class to both the modal element and contentEl for CSS targeting
+    this.modalEl.addClass('obsidian-issues-modal-content');
+    contentEl.addClass('obsidian-issues-modal-content');
     const form = contentEl.createDiv({ cls: 'obsidian-issues-form' });
 
     const titleRow = form.createDiv({ cls: 'obsidian-issues-field' });
@@ -238,7 +241,7 @@ export class IssueModal extends Modal {
       await this.options.onSubmit(data);
       this.close();
     } catch (error) {
-      console.error('Obsidian Issues: failed to save issue', error);
+      console.error('Vault Issues: failed to save issue', error);
       new Notice('Could not save issue. Check the developer console.');
       this.setSubmitting(false);
     }

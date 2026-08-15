@@ -1,4 +1,4 @@
-import type { IssuePriority, IssueStatus } from './types';
+import type { IssuePriority, IssueStatus } from './types.ts';
 
 export const VIEW_TYPE_ISSUES = 'obsidian-issues-view';
 // A leading space, not a dot-prefix. Dot-prefixed folders (e.g. ".Issues")
@@ -15,10 +15,9 @@ export const DEFAULT_ISSUE_PREFIX = 'ISSUE';
 export const ISSUES_FOLDER_HIDDEN_LEGACY = '.Issues';
 export const ISSUES_FOLDER_VISIBLE_LEGACY = 'Issues';
 
-/** Builds a regex to match filenames like `ISSUE-001`, `TASK-001`, etc. */
-export function buildFilenamePattern(prefix: string): RegExp {
-  return new RegExp(`^${prefix}-(\\d+)$`, 'i');
-}
+// `buildFilenamePattern` lives in utils/issue-id.ts — it was duplicated here,
+// and the two copies drifted (only one escaped the prefix before building the
+// regex). Import it from there.
 
 export const ISSUE_STATUSES: readonly IssueStatus[] = [
   'open', 'in-progress', 'closed',
@@ -75,4 +74,14 @@ export function normalizePriority(value: unknown): IssuePriority {
 export function nextStatus(current: IssueStatus): IssueStatus {
   const index = ISSUE_STATUSES.indexOf(current);
   return ISSUE_STATUSES[(index + 1) % ISSUE_STATUSES.length] ?? DEFAULT_STATUS;
+}
+
+export function statusMenuItems(
+  current: IssueStatus,
+): { value: IssueStatus; label: string; checked: boolean }[] {
+  return ISSUE_STATUSES.map((s) => ({
+    value: s,
+    label: ISSUE_STATUS_LABELS[s],
+    checked: s === current,
+  }));
 }

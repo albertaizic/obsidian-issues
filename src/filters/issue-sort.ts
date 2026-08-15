@@ -1,11 +1,11 @@
 import { ISSUE_PRIORITIES } from '../constants.ts';
 import { compareDueDates, compareIsoDates, toIsoDate } from '../dates.ts';
-import type { Issue } from '../types';
-import type { SortBy, SortDir } from './issue-filter';
+import type { Issue } from '../types.ts';
+import type { SortBy, SortDir } from './issue-filter.ts';
 
 /**
  * Sorts issues by the given field and direction.
- * - Undated `due` issues sort last in both directions.
+ * - Undated `due` and `created` issues sort last in both directions.
  * - Ties break by numeric ID order (ISSUE-002 before ISSUE-010).
  */
 export function sortIssues(issues: Issue[], sortBy: SortBy, sortDir: SortDir): Issue[] {
@@ -23,6 +23,12 @@ export function sortIssues(issues: Issue[], sortBy: SortBy, sortDir: SortDir): I
       }
       compareValue = compareDueDates(a.due, b.due);
     } else if (sortBy === 'created') {
+      const aEmpty = toIsoDate(a.created).length === 0;
+      const bEmpty = toIsoDate(b.created).length === 0;
+      if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+      if (aEmpty && bEmpty) {
+        return a.id.localeCompare(b.id, undefined, { numeric: true });
+      }
       compareValue = compareIsoDates(a.created, b.created);
     } else {
       compareValue =

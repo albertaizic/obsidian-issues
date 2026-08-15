@@ -1,18 +1,18 @@
 import { Notice, Plugin, TFile, normalizePath } from 'obsidian';
-import { VIEW_TYPE_ISSUES } from './constants';
-import { IssueModal } from './issue-modal';
-import { IssueService } from './issue-service';
-import { IssuesView } from './issues-view';
+import { VIEW_TYPE_ISSUES } from './constants.ts';
+import { IssueModal } from './issue-modal.ts';
+import { IssueService } from './issue-service.ts';
+import { IssuesView } from './views/issues-view.ts';
 import {
   DEFAULT_SETTINGS,
   IssuesSettingTab,
   normalizeSettings,
   type IssuesSettings,
   type IssuesViewHost,
-} from './settings';
-import type { IssueData } from './types';
+} from './settings.ts';
+import type { IssueData } from './types.ts';
 
-export default class ObsidianIssuesPlugin extends Plugin implements IssuesViewHost {
+export default class VaultIssuesPlugin extends Plugin implements IssuesViewHost {
   settings: IssuesSettings = { ...DEFAULT_SETTINGS };
   private issueService!: IssueService;
 
@@ -92,9 +92,13 @@ export default class ObsidianIssuesPlugin extends Plugin implements IssuesViewHo
         // A source note was deleted: clear the dangling `source` from any
         // issue pointing at it, then repaint so the stale link disappears.
         void (async () => {
-          await this.issueService.clearSourceForDeletedNote(file.path);
-          this.issueService.invalidate();
-          await this.reloadOpenIssueViews();
+          try {
+            await this.issueService.clearSourceForDeletedNote(file.path);
+            this.issueService.invalidate();
+            await this.reloadOpenIssueViews();
+          } catch (error) {
+            console.error('Vault Issues: failed to clear source for deleted note', error);
+          }
         })();
       }),
     );
@@ -106,9 +110,13 @@ export default class ObsidianIssuesPlugin extends Plugin implements IssuesViewHo
           return;
         }
         void (async () => {
-          await this.issueService.updateSourcePath(oldPath, file.path);
-          this.issueService.invalidate();
-          await this.reloadOpenIssueViews();
+          try {
+            await this.issueService.updateSourcePath(oldPath, file.path);
+            this.issueService.invalidate();
+            await this.reloadOpenIssueViews();
+          } catch (error) {
+            console.error('Vault Issues: failed to update source path after rename', error);
+          }
         })();
       }),
     );
@@ -116,6 +124,92 @@ export default class ObsidianIssuesPlugin extends Plugin implements IssuesViewHo
 
   async saveSettings(): Promise<void> {
     await this.saveData(this.settings);
+  }
+
+  /**
+   * Commits a staged settings draft.
+   *
+   * Order matters: the file migrations run while `this.settings` still points
+   * at the *old* folder and prefix, because that is how `IssueService` locates
+   * the files it needs to move. Only once they are on disk in their new home
+   * is the settings object updated.
+   */
+  async applySettings(next: IssuesSettings): Promise<string[]> {
+    const normalized = normalizeSettings(next);
+    const previous = { ...this.settings };
+    const summary: string[] = [];
+
+    const prefixChanged = previous.issuePrefix !== normalized.issuePrefix;
+    const folderChanged =
+      normalizePath(previous.issuesFolder) !== normalizePath(normalized.issuesFolder);
+
+    // Rename first, while the files are still in the folder the service knows
+    // about; then move the renamed files to the new folder.
+    if (prefixChanged) {
+      const { renamed, skipped } = await this.issueService.renameIssuePrefix(
+        previous.issuePrefix,
+        normalized.issuePrefix,
+      );
+      if (renamed > 0) {
+        summary.push(`Renamed ${renamed} issue${renamed === 1 ? '' : 's'} to ${normalized.issuePrefix}-…`);
+      }
+      if (skipped > 0) {
+        summary.push(`${skipped} issue${skipped === 1 ? '' : 's'} skipped — a file with that name already exists.`);
+      }
+    }
+
+    if (folderChanged) {
+      // Match on the new prefix: if the rename above ran, that is what the
+      // files in the old folder are already called.
+      const { moved, skipped, oldFolderRemoved } = await this.issueService.moveIssuesFolder(
+        previous.issuesFolder,
+        normalized.issuesFolder,
+        normalized.issuePrefix,
+      );
+      if (moved > 0) {
+        summary.push(`Moved ${moved} issue${moved === 1 ? '' : 's'} to "${normalized.issuesFolder}"`);
+      }
+      if (skipped > 0) {
+        summary.push(`${skipped} issue${skipped === 1 ? '' : 's'} skipped — a file with that name already exists at the destination.`);
+      }
+      if (oldFolderRemoved) {
+        summary.push(`Removed the empty folder "${previous.issuesFolder}"`);
+      } else if (moved > 0) {
+        summary.push(`Kept "${previous.issuesFolder}" — it still contains other files.`);
+      }
+    }
+
+    // Mutated in place rather than reassigned: `IssueService` and every open
+    // view hold a reference to this exact object, so replacing it would leave
+    // them reading the old configuration.
+    Object.assign(this.settings, normalized);
+    await this.saveSettings();
+
+    this.issueService.invalidate();
+    await this.issueService.ensureIssuesFolder();
+    await this.resetIssueViews();
+
+    if (summary.length === 0) summary.push('Settings applied');
+    return summary;
+  }
+
+  /**
+   * Closes every open issues view and opens a fresh one, so the layout, filters
+   * and search box all start from the newly applied defaults rather than
+   * carrying over state that referred to the old folder.
+   */
+  private async resetIssueViews(): Promise<void> {
+    const { workspace } = this.app;
+    const leaves = workspace.getLeavesOfType(VIEW_TYPE_ISSUES);
+    const wasOpen = leaves.length > 0;
+
+    for (const leaf of leaves) {
+      leaf.detach();
+    }
+
+    if (wasOpen) {
+      await this.activateIssuesView();
+    }
   }
 
   private async toggleLayout(): Promise<void> {
@@ -216,7 +310,7 @@ export default class ObsidianIssuesPlugin extends Plugin implements IssuesViewHo
         },
       }).open();
     } catch (error) {
-      console.error('Obsidian Issues: failed to prepare new issue', error);
+      console.error('Vault Issues: failed to prepare new issue', error);
       new Notice('Could not create issue. Check the developer console.');
     }
   }

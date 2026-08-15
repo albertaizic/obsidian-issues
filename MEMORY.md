@@ -1,0 +1,1 @@
+- [No Co-Author Trailer](memory/feedback_no_coauthor.md) — don't add `Co-Authored-By: Claude` trailers to commits

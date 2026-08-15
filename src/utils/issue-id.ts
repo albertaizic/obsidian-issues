@@ -1,9 +1,17 @@
 import type { TFile } from 'obsidian';
 import { DEFAULT_ISSUE_PREFIX } from '../constants.ts';
 
-/** Builds a regex to match filenames like `ISSUE-001`, `TASK-001`, etc. */
+/**
+ * Builds a regex to match filenames like `ISSUE-001`, `TASK-001`, etc.
+ *
+ * The prefix is escaped before interpolation. `normalizePrefix` already strips
+ * anything outside `[A-Z0-9_]`, but this function is also reachable with a
+ * prefix read straight from stored settings or passed by a caller, and an
+ * unescaped `.` or `(` there would silently build the wrong pattern.
+ */
 export function buildFilenamePattern(prefix: string): RegExp {
-  return new RegExp(`^${prefix}-(\\d+)$`, 'i');
+  const escaped = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^${escaped}-(\\d+)$`, 'i');
 }
 
 /** Normalizes a user-entered prefix to uppercase alphanumeric+underscore. */

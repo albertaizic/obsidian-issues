@@ -9,3 +9,6 @@ data.json
 
 # Claude
 .claude/
+
+# Fallback bundler staging dir
+.bundle-tmp/

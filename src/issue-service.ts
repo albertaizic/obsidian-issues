@@ -5,14 +5,19 @@ import {
   ISSUES_FOLDER_HIDDEN_LEGACY,
   ISSUES_FOLDER_VISIBLE_LEGACY,
   ISSUES_FRONTMATTER_KEY,
-  buildFilenamePattern,
   nextStatus,
   normalizePriority,
   normalizeStatus,
-} from './constants';
-import { toDisplayDate, toIsoDate } from './dates';
-import type { Issue, IssueData, IssueStatus } from './types';
-import type { IssuesSettings } from './settings';
+} from './constants.ts';
+import { getNextIssueId, issueFilesInFolder } from './utils/issue-id.ts';
+import { toDisplayDate, toIsoDate } from './dates.ts';
+import {
+  planFolderMove,
+  planPrefixRename,
+  type PlannableFile,
+} from './utils/migration.ts';
+import type { Issue, IssueData, IssueStatus } from './types.ts';
+import type { IssuesSettings } from './settings.ts';
 
 type Frontmatter = Record<string, unknown>;
 
@@ -89,6 +94,11 @@ export class IssueService {
       if (!filePath.toLowerCase().endsWith('.md')) continue;
 
       const fileName = filePath.slice(filePath.lastIndexOf('/') + 1);
+      // Prevent path traversal: reject filenames containing directory traversal sequences
+      if (fileName.includes('..') || fileName.includes('/') || fileName.includes('\\')) {
+        console.warn(`Vault Issues: skipping suspicious filename during migration: ${fileName}`);
+        continue;
+      }
       const destPath = normalizePath(`${destFolder}/${fileName}`);
 
       if (await adapter.exists(destPath)) {
@@ -111,6 +121,152 @@ export class IssueService {
     } catch {
       // Not empty, or other error — leave the legacy folder in place.
     }
+  }
+
+  /**
+   * Moves every issue note from `fromFolder` into `toFolder`.
+   *
+   * The old folder is only removed once nothing is left in it — a folder the
+   * user also keeps their own notes in must survive the move. Files are moved
+   * with `fileManager.renameFile` so Obsidian rewrites any links pointing at
+   * them, and the destination is never overwritten.
+   */
+  async moveIssuesFolder(
+    fromFolder: string,
+    toFolder: string,
+    prefix: string = this.settings.issuePrefix,
+  ): Promise<{ moved: number; skipped: number; oldFolderRemoved: boolean }> {
+    const from = normalizePath(fromFolder);
+    const to = normalizePath(toFolder);
+
+    if (from === to) return { moved: 0, skipped: 0, oldFolderRemoved: false };
+
+    const source = this.app.vault.getFolderByPath(from);
+    if (source === null) return { moved: 0, skipped: 0, oldFolderRemoved: false };
+
+    if (this.app.vault.getFolderByPath(to) === null) {
+      await this.app.vault.createFolder(to);
+    }
+
+    // The prefix is a parameter rather than a read of `this.settings`, because
+    // a combined rename-and-move applies the rename first: by this point the
+    // files on disk already carry the *new* prefix while the live settings
+    // still hold the old one.
+    const candidates = this.app.vault.getMarkdownFiles();
+    const plan = planFolderMove(
+      candidates.map(toPlannable),
+      from,
+      to,
+      prefix,
+      this.occupiedPaths(candidates, to),
+    );
+
+    const byPath = new Map(candidates.map((file) => [file.path, file]));
+    let moved = 0;
+
+    for (const operation of plan.operations) {
+      const file = byPath.get(joinPath(operation.file.parentPath, operation.file.name));
+      if (file === undefined) continue;
+      await this.app.fileManager.renameFile(file, normalizePath(operation.targetPath));
+      moved += 1;
+    }
+
+    const oldFolderRemoved = await this.removeFolderIfEmpty(from);
+    this.invalidate();
+
+    return { moved, skipped: plan.skipped.length, oldFolderRemoved };
+  }
+
+  /**
+   * Paths already taken inside `folder`, so a plan never schedules a move or
+   * rename over an existing file.
+   */
+  private occupiedPaths(files: TFile[], folder: string): Set<string> {
+    const taken = new Set<string>();
+    for (const file of files) {
+      if (file.parent?.path === folder) taken.add(file.path);
+    }
+    return taken;
+  }
+
+  /** Trashes a folder only when it holds no files and no subfolders. */
+  private async removeFolderIfEmpty(folderPath: string): Promise<boolean> {
+    const folder = this.app.vault.getFolderByPath(folderPath);
+    if (folder === null) return false;
+    if (folder.children.length > 0) return false;
+
+    await this.app.fileManager.trashFile(folder);
+    return true;
+  }
+
+  /**
+   * Renames every issue from one ID prefix to another: the file, its `id`
+   * frontmatter, and the entry in each linked source note's `issues` list.
+   *
+   * Without this a prefix change orphans the entire backlog — the files stop
+   * matching the filename pattern and simply vanish from the view.
+   */
+  async renameIssuePrefix(
+    fromPrefix: string,
+    toPrefix: string,
+  ): Promise<{ renamed: number; skipped: number }> {
+    if (fromPrefix === toPrefix) return { renamed: 0, skipped: 0 };
+
+    const folder = normalizePath(this.settings.issuesFolder);
+    const candidates = this.app.vault.getMarkdownFiles();
+    const plan = planPrefixRename(
+      candidates.map(toPlannable),
+      folder,
+      fromPrefix,
+      toPrefix,
+      this.occupiedPaths(candidates, folder),
+    );
+
+    const byPath = new Map(candidates.map((file) => [file.path, file]));
+    let renamed = 0;
+
+    for (const operation of plan.operations) {
+      const file = byPath.get(joinPath(operation.file.parentPath, operation.file.name));
+      if (file === undefined) continue;
+
+      // Read the source link before renaming, so the note's `issues` list can
+      // be repointed at the new ID.
+      const source = await this.readSourcePath(file);
+
+      await this.app.fileManager.renameFile(file, normalizePath(operation.targetPath));
+      await this.writeIssueFrontmatter(file, (fm) => {
+        fm.id = operation.newId;
+      });
+
+      if (source.length > 0) {
+        await this.replaceIssueIdInNote(source, operation.oldId, operation.newId);
+      }
+
+      renamed += 1;
+    }
+
+    this.invalidate();
+    return { renamed, skipped: plan.skipped.length };
+  }
+
+  private async readSourcePath(file: TFile): Promise<string> {
+    const content = await this.app.vault.cachedRead(file);
+    return toStringValue(this.parseFrontmatter(content).source, '');
+  }
+
+  private async replaceIssueIdInNote(
+    notePath: string,
+    oldId: string,
+    newId: string,
+  ): Promise<void> {
+    const note = this.app.vault.getAbstractFileByPath(notePath);
+    if (!(note instanceof TFile)) return;
+
+    await this.app.fileManager.processFrontMatter(note, (fm: Frontmatter) => {
+      const existing = toStringArray(fm[ISSUES_FRONTMATTER_KEY]);
+      if (!existing.includes(oldId)) return;
+      fm[ISSUES_FRONTMATTER_KEY] = existing.map((id) => (id === oldId ? newId : id));
+    });
   }
 
   async ensureIssuesFolder(): Promise<void> {
@@ -147,10 +303,14 @@ export class IssueService {
       const files = this.getIssueFiles();
       const issues = await Promise.all(files.map((file) => this.readIssue(file)));
       issues.sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true }));
-      if (this.generation === generation) {
-        this.cache = issues;
+      // If generation changed during read, the data is stale — don't cache it,
+      // and don't return it to callers. Instead, clear inFlight and retry.
+      if (this.generation !== generation) {
         this.inFlight = null;
+        return this.listIssues();
       }
+      this.cache = issues;
+      this.inFlight = null;
       return issues;
     })();
 
@@ -276,23 +436,15 @@ export class IssueService {
   }
 
   private getIssueFiles(): TFile[] {
-    const pattern = buildFilenamePattern(this.settings.issuePrefix);
-    return this.app.vault
-      .getMarkdownFiles()
-      .filter((file) => file.parent?.path === normalizePath(this.settings.issuesFolder))
-      .filter((file) => pattern.test(file.basename));
+    return issueFilesInFolder(
+      this.app.vault.getMarkdownFiles(),
+      normalizePath(this.settings.issuesFolder),
+      this.settings.issuePrefix,
+    );
   }
 
   private getNextIssueId(): string {
-    const pattern = buildFilenamePattern(this.settings.issuePrefix);
-    const prefix = this.settings.issuePrefix;
-    const highestNumber = this.getIssueFiles().reduce((highest, file) => {
-      const match = file.basename.match(pattern);
-      const value = match?.[1] === undefined ? 0 : Number.parseInt(match[1], 10);
-      return Number.isNaN(value) ? highest : Math.max(highest, value);
-    }, 0);
-
-    return `${prefix}-${String(highestNumber + 1).padStart(3, '0')}`;
+    return getNextIssueId(this.getIssueFiles(), this.settings.issuePrefix);
   }
 
   private async readIssue(file: TFile): Promise<Issue> {
@@ -420,4 +572,13 @@ function reorderFrontmatter(fm: Frontmatter): void {
   for (const [key, value] of Object.entries(snapshot)) {
     if (!(key in fm)) fm[key] = value;
   }
+}
+
+/** Projects a vault file onto the shape the migration planners work with. */
+function toPlannable(file: TFile): PlannableFile {
+  return { basename: file.basename, name: file.name, parentPath: file.parent?.path ?? '' };
+}
+
+function joinPath(folder: string, name: string): string {
+  return folder.length > 0 ? `${folder}/${name}` : name;
 }

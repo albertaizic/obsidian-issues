@@ -1,5 +1,5 @@
 import { setIcon } from 'obsidian';
-import { applyLabelColor } from './labels';
+import { applyLabelColor } from './labels.ts';
 
 export interface TagInputProps {
   value: readonly string[];

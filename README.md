@@ -1,4 +1,4 @@
-# Obsidian Issues
+# Vault Issues
 
 A GitHub Issues-inspired issue tracker for Obsidian. Issues are stored as normal Markdown files, so your data remains readable and useful even without the plugin.
 
@@ -257,6 +257,78 @@ Improved:
 - **Improved maintainability of the TypeScript codebase** — strict typing, sentence-case conventions,
   and consistent module boundaries support future extension.
 
+## Milestone: v0.7.1 — settings apply/cancel
+
+The settings tab no longer writes as you type. Changes are staged and committed together, which
+matters because two of them decide where issues live on disk.
+
+- **Apply changes / Cancel** — edits are held as a draft. Apply commits them; Cancel discards them
+  and restores the stored values. A status line reports what Apply will do before you press it.
+- **Renaming the issues folder migrates your issues** — Apply moves every issue note into the new
+  folder, then removes the old folder **only if nothing else is left in it**. A folder that also
+  holds notes of your own is kept, and the reason is reported.
+- **Changing the ID prefix renames existing issues** — `ISSUE-001.md` becomes `TASK-001.md`, the
+  `id` field is rewritten, and the `issues` list in any linked source note is repointed at the new
+  ID. Previously a prefix change orphaned the entire backlog, since the files no longer matched the
+  filename pattern.
+- **Dot-prefixed names are blocked, not silently corrected** — a folder starting with `.` is
+  invisible to Obsidian's vault API, so issues stored there would never appear. The field shows an
+  inline explanation and Apply stays disabled until it is fixed.
+- **The issues view is fully reset after Apply** — open views are closed and reopened in the chosen
+  default layout, so no filter or search state survives from the previous folder.
+
+Fixed:
+
+- **The default folder `" Issues"` lost its leading space.** `trim()` was applied to the folder
+  name, so the default silently became `"Issues"` as soon as the settings tab was touched — pointing
+  the plugin at a folder that did not contain any of the existing issues. Only trailing whitespace
+  is stripped now.
+
+## Milestone: v0.8.0 — desktop UX & cleanup
+
+Vault Issues 0.8.0 focuses on refining the desktop experience and cleaning up the codebase before
+the release-candidate stage.
+
+Added:
+
+- **Desktop context menus for issue actions** — right-click any list row or Kanban card for Open,
+  Edit, status changes, the linked source note, and Delete.
+- **Quick status changes from list and Kanban views** — status entries are phrased as actions
+  ("Mark as in progress") and the current status is shown checked and disabled.
+- **Direct access to linked source notes from issue menus** — shown only when the note exists.
+- **Project information on Kanban cards**
+- **Clearer feedback when search or filters are active** — the summary gains a `Showing 6 of 37`
+  line, and **Reset filters** only becomes prominent once a filter or search is active.
+
+Improved:
+
+- **Refactored view rendering into smaller, more focused UI modules** — `views/` now holds the
+  coordinator, list and Kanban renderers, and `components/` holds the toolbar, action/context-menu
+  and metadata rendering. `issues-view.ts` went from ~1,193 lines to ~412 and no longer knows how to
+  draw individual buttons or metadata.
+- **Improved consistency between list and Kanban views**
+- **Expanded automated coverage for migration and new issue-management behaviour** — folder and
+  prefix migration planning is now pure and unit-tested, including collision and skip cases.
+
+Changed:
+
+- **Vault Issues is now explicitly desktop-only** (`isDesktopOnly: true`). Development focuses on a
+  polished desktop workflow rather than maintaining a separate mobile experience.
+- The **Obsidian Issues → Vault Issues** rename is complete across the README, the plugin class and
+  all console output. Internal CSS namespaces are intentionally left as `obsidian-issues-*`:
+  renaming hundreds of selectors carries risk for no user-visible benefit.
+
+Fixed:
+
+- **The status toggle rendered as an ellipse rather than a circle.** As a flex item it inherited
+  padding and a min-width from Obsidian's base button styles; the aspect ratio is now pinned
+  explicitly.
+- **`buildFilenamePattern` was defined twice** and the copies had drifted — only one escaped the
+  prefix before building the regex. Consolidated into `utils/issue-id.ts`.
+- **The settings footer reserved far too much space.** A `position: sticky` element keeps its place
+  in normal flow and cannot cover the content above it, so the large bottom padding compensating for
+  it was unnecessary.
+
 ## Development setup
 
 Use a separate development vault. A convenient layout is:
@@ -382,12 +454,13 @@ supported path.
 
 ## Roadmap
 
-- **v0.1** ~ completed — create/read/close issues
-- **v0.2** ~completed — labels, priority, projects, due dates, edit modal
-- **v0.3** ~completed — filters, search
-- **v0.4** ~completed — Kanban/dashboard
-- **v0.5** ~completed — Kanban and knowledge-base integration
-- **v0.5** ~completed — note integration, commands, settings, accessibility and reliability pass
-- **v0.6** ~completed — configurable issues folder, ID prefix, and default priority; migration; unit tests
-- **v0.7** ~completed — reliability & architecture: expanded tests, CI test step, module refactor
-- **v1.0** — polished release, expanded test coverage, documentation, demo GIF, GitHub release
+v0.1.0 ✅ Core issue tracking
+v0.2.0 ✅ Metadata and editing
+v0.3.0 ✅ Search and filtering
+v0.4.0 ✅ Kanban
+v0.5.0 ✅ Knowledge-base integration
+v0.6.0 ✅ Configuration and migration
+v0.7.0 ✅ Reliability and architecture
+v0.8.0 ✅ Desktop UX and cleanup
+v0.9.0   Release candidate
+v1.0.0   Stable release

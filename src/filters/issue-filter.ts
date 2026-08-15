@@ -1,5 +1,5 @@
-import type { Issue, IssuePriority, IssueStatus } from '../types';
-import type { IssuesSettings } from '../settings';
+import type { Issue, IssuePriority, IssueStatus } from '../types.ts';
+import type { IssuesSettings } from '../settings.ts';
 import { shortIssueId } from '../utils/issue-id.ts';
 
 export type SortBy = 'created' | 'due' | 'priority';
@@ -76,4 +76,11 @@ export function filterIssues(issues: Issue[], filters: FilterState): Issue[] {
     }
     return true;
   });
+}
+
+export function visibleCount(
+  issues: Issue[],
+  filters: FilterState,
+): { total: number; visible: number } {
+  return { total: issues.length, visible: filterIssues(issues, filters).length };
 }
