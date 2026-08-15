@@ -1,466 +1,358 @@
 # Vault Issues
 
-A GitHub Issues-inspired issue tracker for Obsidian. Issues are stored as normal Markdown files, so your data remains readable and useful even without the plugin.
+A GitHub Issues-inspired issue tracker for Obsidian. Issues are plain Markdown
+files with YAML frontmatter, so your backlog stays readable, greppable and
+portable — with or without the plugin installed.
 
-## Why
+Desktop only. No account, no network access, no telemetry.
 
-This plugin exists because Obsidian has no built-in task tracker with the workflow affordances of GitHub Issues — status cycling, labels, priorities, due dates, drag-and-drop Kanban, and bidirectional linking to your notes. It was built as a hackable, self-contained alternative to external tools so the workflow stays inside your vault. The codebase is intentionally kept dependency-free and easy to modify: issue data is plain YAML frontmatter in Markdown files, so you can fix, extend, or inspect issues with nothing more than a text editor.
+## Demo
 
-It also serves as a vehicle for working through a larger TypeScript/Obsidian plugin project end-to-end — from initial scaffolding to filtering, search, Kanban, and a settings UI.
+![The issues sidebar in list layout](screenshots/v0.5-issues-sidebar.png)
 
-## Project structure
+![The Kanban layout](screenshots/v0.5-issues-kanban-view.png)
 
-```
-src/
-  main.ts            Plugin entry point, lifecycle, commands, vault event wiring
-  issue-service.ts   Reads, writes, caches, and migrates issue files
-  issues-view.ts     The sidebar view: list and Kanban rendering
-  issue-modal.ts     New/edit issue form with tag-input labels
-  tag-input.ts       Reusable tag-input component for labels
-  labels.ts          Label colour assignment
-  dates.ts           Date parsing, formatting, and comparison helpers
-  constants.ts       Status/priority enums, field order, folder/prefix defaults
-  types.ts           Issue, IssueData, IssueStatus, IssuePriority types
-  settings.ts        Settings tab (re-exports config from config/settings.ts)
-  confirm-modal.ts   Reusable confirmation dialog
-  config/
-    settings.ts        Settings interface, defaults, normalisation, view-host contract
-  filters/
-    issue-filter.ts    Search + multi-select filtering (status, project, priority, labels)
-    issue-sort.ts      Sort logic by created date, due date, or priority
-  utils/
-    issue-id.ts        Prefix normalisation, filename pattern matching, next-ID computation
-```
+![The new/edit issue form](screenshots/v0.5-edit-issue.png)
 
-`styles.css` is loaded by Obsidian alongside `main.js` and `manifest.json`. Source in `src/` is bundled with esbuild into `main.js` at the plugin root.
+![The settings tab](screenshots/v0.6-settings-view.png)
 
-## Milestone: v0.1 — starter
+> These screenshots were captured on earlier releases and still reflect the
+> current layout. A short demo GIF has not been recorded yet.
 
-This first milestone supports:
+## Features
 
-- `Open issues` command
-- right-sidebar Issues view
-- `+ New Issue` button
-- automatic `Issues/` folder creation
-- sequential files such as `ISSUE-001.md`, `ISSUE-002.md`, ...
-- reading issue `title` and `status` from YAML frontmatter
-- opening an issue note by clicking it in the sidebar
-- live sidebar refresh when issue files change
+- **Issues as Markdown** — one file per issue, all metadata in frontmatter.
+- **List and Kanban layouts** — switch from the header, a command, or settings.
+- **Drag-and-drop Kanban** — moving a card rewrites the issue's `status`.
+- **Three statuses** — open, in progress, closed. Click the status dot to cycle.
+- **Priorities** — low, medium, high, critical, with colour-coded badges.
+- **Labels** — colour-coded pills with autocomplete over labels already in use.
+- **Projects** — group issues by a free-text project name, with autocomplete.
+- **Due dates** — native date picker, colour-coded by urgency (red overdue,
+  amber due today, muted otherwise; a closed issue is never shown as overdue).
+- **Search, filtering and sorting** — across titles, bodies, labels, projects
+  and IDs.
+- **Two-way note linking** — an issue records its source note, and the note
+  records the issue.
+- **Right-click context menus** — open, edit, change status, jump to the source
+  note, delete.
+- **Keyboard accessible** — filters, status toggles and Kanban cards are all
+  reachable without a mouse.
+- **Configurable storage** — choose the issues folder and the ID prefix; both
+  changes migrate existing issues rather than orphaning them.
+- **Theme-aware** — colours come from Obsidian's theme variables.
 
-Example issue:
+## Installation
 
-```md
----
-id: ISSUE-001
-title: New issue
-status: open
-created: 2026-08-10
----
+Vault Issues is not yet in the Obsidian Community Plugins directory. Until it
+is, install it manually:
 
-Describe the issue here.
-```
+1. Download `main.js`, `manifest.json` and `styles.css` from the
+   [latest release](https://github.com/albertaizic/obsidian-issues/releases).
+2. Create a folder in your vault at `.obsidian/plugins/vault-issues/`.
+3. Put the three files in it.
+4. In Obsidian, go to **Settings → Community plugins**, turn off Restricted
+   mode if it is on, then select the reload icon next to **Installed plugins**.
+5. Enable **Vault Issues**.
 
-## Milestone: v0.2 — issue metadata + editing
+## Quick start
 
-Adds richer issue metadata and in-place editing:
+1. Open the Command Palette and run **Vault Issues: Open issues**, or select the
+   circle-dot icon in the ribbon. The issues view opens in the right sidebar.
+2. Select **+ new issue**.
+3. Give it a title and select **Create**.
 
-- **Close/reopen toggle** — click the status dot (●/○) to toggle open and closed
-- **New issue modal** — `+ new issue` opens a form with title (status not editable)
-- **Priority field** — `low` / `medium` / `high` / `critical` dropdown with color-coded badges
-- **Project field** — free-text project name
-- **Labels field** — comma-separated tags displayed as pills in the sidebar
-- **Due date** — date picker shown in the row metadata
-- **Edit issue modal** — pencil icon per row opens the same form with all fields editable (including status)
+You now have a folder in your vault:
 
-Updated issue format with all v0.2 fields:
-
-```md
----
-id: ISSUE-005
-title: Implement API client
-status: open
-priority: high
-project: Auth Service
-labels:
-  - backend
-  - security
-due: 2026-08-20
-created: 2026-08-10
----
-
-Describe the issue here.
+```text
+YourVault/
+├──  Issues/
+│   └── ISSUE-001.md
+└── .obsidian/
 ```
 
-Old v0.1 issues display and edit without errors — missing fields fall back to their defaults.
+The default folder is `" Issues"` — with a leading space, so it sorts to the
+top of the file list. Both the folder and the `ISSUE` prefix are configurable.
 
-## Milestone: v0.3 — search, filters & sorting
+## Creating issues
 
-Adds tools for managing larger collections of issues through search, filtering and sorting.
+There are three ways to create an issue:
 
-- **Issue search** — live text search across titles and labels
-- **Open / Closed / All filters** — toggle the visible issue set
-- **Project filtering** — project dropdown selection
-- **Priority filtering** — filter by one or more priority levels
-- **Label filtering** — filter by selected labels
-- **Due-date filtering** — filter by overdue, due this week, etc.
-- **Sort by** — priority, creation date, and due date (ascending or descending)
-- **Overdue indicators** — issues past their due date are flagged
-- **Open and closed issue counters** — live counts in the sidebar header
-- **Delete issue button** — remove an issue from the edit modal
-- **GitHub-style label tags** — color-coded label pills with a configurable palette
-
-Date format updated to day/month/year (e.g. `10/08/2026`).
-
-![Issues sidebar with search and filters](screenshots/v0.3-issue-sidebar.png)
-
-## Milestone: v0.4.0 — Kanban
-
-Introduces a visual Kanban board alongside the existing list view.
-
-- **List / Kanban view switching**
-- **Open, In Progress and Closed columns**
-- **Drag-and-drop issue cards**
-- **Moving a card automatically updates Markdown frontmatter**
-- **Status synchronization between Kanban and list views**
-- **Basic dashboard statistics**
-- **Improved search filtering**
-
-![Issues Kanban view](screenshots/v0.4-issues-kaban-view.png)
-![Full view](screenshots/v0.4-full-view.png)
-
-## Milestone: v0.5.0 — Kanban and knowledge-base integration
-
-Adds deep integration with the user's Obsidian knowledge base, allowing tasks and project work to
-reference the notes they originated from.
-
-Features:
-
-- **List / Kanban view switching**
-- **Single-column Kanban with status group separation**
-- **Drag-and-drop issue cards**
-- **Moving a card automatically updates Markdown frontmatter**
-- **Status synchronization between Kanban and list views**
-- **Basic dashboard statistics**
-- **Create issue from the currently open note**
-- **Link issues to source notes**
-- **Navigate from an issue to its related note**
-- **Project relationships**
-- **Commands for creating and managing issues from anywhere in Obsidian**
-- **Improved integration with Obsidian's workspace**
-
-Commands added to the Command Palette:
-
-| Command | What it does |
+| How | What it does |
 | --- | --- |
-| `Open issues` | Reveals the issues view in the right sidebar |
-| `Create issue` | Opens the new-issue form from anywhere |
-| `Create issue for current note` | Creates an issue linked to the active note |
-| `Toggle list / Kanban layout` | Switches the issues view between layouts |
+| **+ new issue** in the view header | Opens an empty form |
+| **Create issue** command | The same form, from anywhere in Obsidian |
+| **Create issue for current note** command | Pre-fills the title, project and source from the active note, and links the two together |
 
-An issue created from a note records the note in its `source` field, and the note records the
-issue in its own `issues` list — so the link is navigable in both directions:
+The form has a title (required), priority, project, labels and a due date.
+Status is only editable when editing an existing issue — new issues always
+start as open.
+
+## Issue format
+
+Each issue is a Markdown file named `<PREFIX>-<NNN>.md`. Everything the plugin
+knows lives in the frontmatter; the body is yours.
 
 ```md
 ---
 id: ISSUE-007
-title: Rewrite the onboarding section #1
+title: Rewrite the onboarding section
 status: in-progress
 priority: high
 project: Handbook
 source: Notes/Handbook.md
 labels:
   - docs
+  - onboarding
 due: 20/08/2026
 created: 2026-08-13
 ---
+
+Describe the issue here.
 ```
 
-![Issues sidebar with single-column Kanban](screenshots/v0.5-issues-sidebar.png)
-![Single-column Kanban view](screenshots/v0.5-issues-kanban-view.png)
-![Edit issue modal](screenshots/v0.5-edit-issue.png)
+| Field | Values |
+| --- | --- |
+| `id` | `<PREFIX>-<NNN>`, matching the filename |
+| `title` | Free text; falls back to the filename if missing |
+| `status` | `open`, `in-progress`, `closed` — anything else reads as `open` |
+| `priority` | `low`, `medium`, `high`, `critical` — anything else reads as `medium` |
+| `project` | Free text, optional |
+| `source` | Vault path of the linked note, optional |
+| `labels` | A YAML list, optional |
+| `due` | `DD/MM/YYYY`, optional |
+| `created` | `YYYY-MM-DD` |
 
-### Reliability and interface work in this release
+Files are written through Obsidian's own frontmatter API, so quotes, colons and
+other YAML-hostile characters in a title are escaped correctly, and the body is
+never rewritten. Hand-editing an issue in the editor is safe; missing or
+unrecognised fields fall back to defaults rather than breaking the view.
 
-- Frontmatter is now written through Obsidian's own `processFrontMatter` API. The previous
-  serializer quoted values without escaping them, so an issue whose title contained a `"` produced
-  invalid YAML and silently lost its metadata. Existing issues are read and repaired automatically.
-- Writes no longer rewrite the whole file, so they can't overwrite unsaved changes in an open editor.
-- Deleting an issue asks for confirmation (can be turned off in settings).
-- Due dates use a native date picker and are validated; unreadable values are flagged in the list
-  instead of rendering as `Invalid date`.
-- Due dates are colour-coded by urgency: **red** once overdue, **amber** on the day they are due,
-  muted otherwise. Closing an issue retires the colour — a closed issue is never shown as overdue,
-  since its deadline is history.
-- Unrecognised `status` values fall back to `open` rather than making the issue vanish from the board.
-- The status dot cycles open → in progress → closed instead of discarding the in-progress state.
-- Search covers titles, bodies, labels, projects and issue IDs, and is debounced.
-- Undated issues sort last regardless of sort direction.
-- Vault changes no longer rebuild the toolbar, so the search box keeps focus while you type.
-- Full keyboard support: filter options, status toggles and Kanban cards are all reachable, and
-  `Ctrl`/`Cmd` + `←`/`→` cycles a focused issue's status (open → in progress → closed).
-- All colours now come from Obsidian theme variables, so the plugin follows light and dark themes.
-- New settings tab: default layout, default sort order, and delete confirmation.
+## List view
 
-## Milestone: v0.6.0 — configurability & migration
+Each row shows the status dot, the issue ID and title, and its metadata:
+priority badge, labels, project, due date and a link to the source note.
 
-This release makes Vault Issues configurable for different vault structures and prepares the plugin
-for public distribution.
+- Select the row to open the issue note.
+- Select the status dot to cycle open → in progress → closed.
+- Hover for edit and delete buttons.
+- Right-click for the full context menu.
 
-Added:
+The header shows live open and closed counts, plus a `Showing 6 of 37` line
+whenever a search or filter is narrowing the list.
 
-- **Configurable issues folder** — set any folder name in settings; the plugin creates it and stores
-  issues there. The default remains `" Issues"` (with a leading space so it sorts to the top of the
-  file list). Dot-prefixed names are rejected because Obsidian's Vault API silently ignores them.
-- **Configurable issue ID prefix** — choose a filename prefix such as `ISSUE`, `TASK`, or `BUG`.
-  The input is normalised to uppercase alphanumeric + underscores (`task` → `TASK`, `issue-name` →
-  `ISSUE_NAME`), and issue files are named `<PREFIX>-001.md`, `<PREFIX>-002.md`, …
-- **Default priority setting** — pick the priority (`low` / `medium` / `high` / `critical`)
-  pre-filled when creating a new issue.
-- **Persistent default layout and sorting** — the default view (list or Kanban) and default sort
-  order now live in settings and survive restarts, instead of being reset each session.
-- **Improved migration of issues created by earlier versions** — existing issues are migrated
-  automatically from legacy folder locations (`.Issues`, `Issues`, and the v0.5 default `" Issues"`)
-  into the configured issues folder on first load. Duplicates at the destination are skipped and
-  the source file removed, leaving no orphans.
+## Kanban
 
-Under the hood, v0.6 also refactors core logic into testable modules: settings normalisation
-(`src/config/settings.ts`), issue filtering (`src/filters/issue-filter.ts`), sorting (`src/filters/issue-sort.ts`),
-and ID utilities (`src/utils/issue-id.ts`). A comprehensive unit-test suite was added covering all of the
-above.
+The Kanban layout renders **Open**, **In progress** and **Closed** columns.
 
-![v0.6 settings tab](screenshots/v0.6-settings-view.png)
+- Drag a card between columns to change its status — the frontmatter is
+  rewritten immediately.
+- Cards are focusable: `Tab` to one and press `Ctrl`/`Cmd` + `←`/`→` to move it
+  between columns without a mouse.
+- Empty columns still render, so a fresh vault shows the board structure and
+  every column stays a valid drop target.
 
-## Milestone: v0.7.0 — reliability & architecture
+The status filter is hidden in this layout — the columns already are the status
+axis.
 
-This release focuses on the internal architecture and reliability of Vault Issues as the project moves
-toward a stable release. No major workflow changes are introduced; the focus is making the existing
-functionality safer, easier to test, and easier to extend.
+## Search, filtering and sorting
 
-Added:
+The toolbar carries a debounced search box, filter dropdowns and a sort
+dropdown.
 
-- **Automated tests in GitHub Actions** — the CI pipeline now runs `npm test` on Node.js 20, 22, and 24,
-  catching regressions before release.
+- **Search** matches titles, bodies, labels, projects and issue IDs.
+- **Filters** — status, project, priority and labels. Each is multi-select and
+  shows a count when active, with a **Clear <filter>** action in its panel.
+- **Sort** — Created ↓/↑, Due soonest/latest, Priority ↓/↑. Issues with no due
+  date always sort last, in both directions.
+- **Reset filters** clears everything at once, and only becomes prominent once
+  something is actually active.
 
-Improved:
+Filters are view state, not saved settings; the *default* sort order is a
+setting.
 
-- **Refactored the Issues view into smaller, focused modules** — the monolithic `issues-view.ts` is
-  split into dedicated modules for filtering (`src/filters/issue-filter.ts`), sorting
-  (`src/filters/issue-sort.ts`), ID utilities (`src/utils/issue-id.ts`), and settings configuration
-  (`src/config/settings.ts`).
-- **Improved separation between UI, filtering, persistence, and issue-management logic** — pure logic
-  is extracted from Obsidian-dependent code, making it independently testable.
-- **Expanded automated test suite** — 109 unit tests using Node's built-in test runner, covering issue
-  IDs, statuses, sorting, filtering, settings normalisation, and frontmatter parsing.
-- **Improved handling of malformed or incomplete Markdown issue files** — invalid frontmatter values
-  fall back to safe defaults rather than breaking the view; impossible dates and unknown statuses are
-  handled gracefully.
-- **Improved maintainability of the TypeScript codebase** — strict typing, sentence-case conventions,
-  and consistent module boundaries support future extension.
+## Linking issues to notes
 
-## Milestone: v0.7.1 — settings apply/cancel
+Running **Create issue for current note** on an open note creates a two-way
+link:
 
-The settings tab no longer writes as you type. Changes are staged and committed together, which
-matters because two of them decide where issues live on disk.
+- the issue gets `source: Notes/Handbook.md`
+- the note gets the issue's ID in its own `issues` frontmatter list
 
-- **Apply changes / Cancel** — edits are held as a draft. Apply commits them; Cancel discards them
-  and restores the stored values. A status line reports what Apply will do before you press it.
-- **Renaming the issues folder migrates your issues** — Apply moves every issue note into the new
-  folder, then removes the old folder **only if nothing else is left in it**. A folder that also
-  holds notes of your own is kept, and the reason is reported.
-- **Changing the ID prefix renames existing issues** — `ISSUE-001.md` becomes `TASK-001.md`, the
-  `id` field is rewritten, and the `issues` list in any linked source note is repointed at the new
-  ID. Previously a prefix change orphaned the entire backlog, since the files no longer matched the
-  filename pattern.
-- **Dot-prefixed names are blocked, not silently corrected** — a folder starting with `.` is
-  invisible to Obsidian's vault API, so issues stored there would never appear. The field shows an
-  inline explanation and Apply stays disabled until it is fixed.
-- **The issues view is fully reset after Apply** — open views are closed and reopened in the chosen
-  default layout, so no filter or search state survives from the previous folder.
+```md
+---
+issues:
+  - ISSUE-007
+---
+```
 
-Fixed:
+From an issue you can jump to its source note via the context menu. The links
+are maintained automatically: renaming a note updates the `source` of every
+issue pointing at it, deleting a note clears the dangling reference, and
+deleting an issue removes its entry from the note.
 
-- **The default folder `" Issues"` lost its leading space.** `trim()` was applied to the folder
-  name, so the default silently became `"Issues"` as soon as the settings tab was touched — pointing
-  the plugin at a folder that did not contain any of the existing issues. Only trailing whitespace
-  is stripped now.
+## Commands
 
-## Milestone: v0.8.0 — desktop UX & cleanup
+| Command | What it does |
+| --- | --- |
+| **Open issues** | Reveals the issues view in the right sidebar |
+| **Create issue** | Opens the new-issue form |
+| **Create issue for current note** | Creates an issue linked to the active note |
+| **Toggle list / kanban layout** | Switches the issues view between layouts |
 
-Vault Issues 0.8.0 focuses on refining the desktop experience and cleaning up the codebase before
-the release-candidate stage.
+Obsidian prefixes these with the plugin name in the Command Palette. None of
+them ship a default hotkey — assign your own under **Settings → Hotkeys**.
 
-Added:
+## Settings
 
-- **Desktop context menus for issue actions** — right-click any list row or Kanban card for Open,
-  Edit, status changes, the linked source note, and Delete.
-- **Quick status changes from list and Kanban views** — status entries are phrased as actions
-  ("Mark as in progress") and the current status is shown checked and disabled.
-- **Direct access to linked source notes from issue menus** — shown only when the note exists.
-- **Project information on Kanban cards**
-- **Clearer feedback when search or filters are active** — the summary gains a `Showing 6 of 37`
-  line, and **Reset filters** only becomes prominent once a filter or search is active.
+**Settings → Community plugins → Vault Issues**
 
-Improved:
+| Setting | Default | Notes |
+| --- | --- | --- |
+| **Issues folder** | `" Issues"` | Where issue files live. Changing it moves your existing issues. |
+| **Issue ID prefix** | `ISSUE` | Normalised to uppercase alphanumerics and underscores. Changing it renames existing issues and updates linked notes. |
+| **Default view** | List | Layout the view opens in |
+| **Default priority** | Medium | Pre-filled on new issues |
+| **Default sort** | Created ↓ | Sort order the view opens with |
+| **Confirm before deleting** | On | Ask before moving an issue to the trash |
 
-- **Refactored view rendering into smaller, more focused UI modules** — `views/` now holds the
-  coordinator, list and Kanban renderers, and `components/` holds the toolbar, action/context-menu
-  and metadata rendering. `issues-view.ts` went from ~1,193 lines to ~412 and no longer knows how to
-  draw individual buttons or metadata.
-- **Improved consistency between list and Kanban views**
-- **Expanded automated coverage for migration and new issue-management behaviour** — folder and
-  prefix migration planning is now pure and unit-tested, including collision and skip cases.
+Settings are staged, not written as you type: edit the fields, then select
+**Apply changes** — or **Cancel** to discard. This matters because two of them
+move files on disk. Apply reports what it did, and keeps the old folder if it
+still contains anything that isn't an issue.
 
-Changed:
+A folder name starting with `.` is rejected rather than silently corrected:
+Obsidian's vault API skips dot-prefixed paths entirely, so issues stored there
+would be invisible to the plugin.
 
-- **Vault Issues is now explicitly desktop-only** (`isDesktopOnly: true`). Development focuses on a
-  polished desktop workflow rather than maintaining a separate mobile experience.
-- The **Obsidian Issues → Vault Issues** rename is complete across the README, the plugin class and
-  all console output. Internal CSS namespaces are intentionally left as `obsidian-issues-*`:
-  renaming hundreds of selectors carries risk for no user-visible benefit.
+## Data and portability
 
-Fixed:
+- Everything is a Markdown file in your vault. There is no database and no
+  separate index.
+- Deleting an issue uses Obsidian's trash setting rather than an unrecoverable
+  delete.
+- The plugin makes **no network requests** and collects **no telemetry**. It has
+  no runtime dependencies.
+- It reads and writes only the configured issues folder, plus the `issues`
+  frontmatter key of notes you explicitly link.
+- Uninstalling leaves your issues behind as ordinary notes.
 
-- **The status toggle rendered as an ellipse rather than a circle.** As a flex item it inherited
-  padding and a min-width from Obsidian's base button styles; the aspect ratio is now pinned
-  explicitly.
-- **`buildFilenamePattern` was defined twice** and the copies had drifted — only one escaped the
-  prefix before building the regex. Consolidated into `utils/issue-id.ts`.
-- **The settings footer reserved far too much space.** A `position: sticky` element keeps its place
-  in normal flow and cannot cover the content above it, so the large bottom padding compensating for
-  it was unnecessary.
+Issues created by earlier versions are migrated automatically on load: the
+legacy `.Issues` and `Issues` folders, and the v0.5 default `" Issues"`, are
+moved into the configured folder. Anything already present at the destination is
+left alone.
 
-## Development setup
+## Development
 
-Use a separate development vault. A convenient layout is:
+Work in a **separate development vault**, not your real one. Clone the
+repository into the vault's plugin folder — the folder name must match the
+plugin ID, `vault-issues`:
 
 ```text
 ObsidianDev/
 └── .obsidian/
     └── plugins/
-        └── obsidian-issues/
+        └── vault-issues/
 ```
 
-Clone this repository into the plugin folder, then run:
-
 ```bash
-npm install
+git clone https://github.com/albertaizic/obsidian-issues.git vault-issues
+cd vault-issues
+npm ci
 npm run dev
 ```
 
-In Obsidian:
+Then open the vault, enable **Vault Issues** under **Settings → Community
+plugins**, and run **Open issues**.
 
-1. Open the `ObsidianDev` vault.
-2. Go to **Settings → Community plugins**.
-3. Turn off Restricted mode if necessary.
-4. Enable **Vault Issues**.
-5. Open the Command Palette and run **Open issues**.
-6. Click **+ New issue**.
+**Obsidian only ever runs `main.js`** — editing `src/` is not enough. `npm run
+dev` rebuilds on save, but you still need to reload the plugin (disable and
+re-enable it, or run **Reload app without saving**) for Obsidian to pick up the
+new file.
 
-You should now have:
-
-```text
-ObsidianDev/
-├──  Issues/
-│   └── ISSUE-001.md
-└── .obsidian/
-    └── plugins/
-        └── obsidian-issues/
-```
-
-The issues folder is named `" Issues"` with a leading space so it sorts to the top of the file
-list. Vaults created with v0.1–v0.3 used `Issues/` or `.Issues/`; both are migrated automatically
-on first load.
-
-## Tests
-
-```bash
-npm test
-```
-
-Runs the unit-test suite with Node's built-in test runner (requires Node 22+).
-
-Coverage added in v0.6, expanded in v0.7 with CI integration:
-
-- **Settings** (`tests/settings.test.ts`) — `normalizeSettings()` coercion: dot-prefixed folders,
-  whitespace, invalid priorities / view modes / sort keys, and prefix uppercasing.
-- **Issue IDs** (`tests/issue-id.test.ts`) — filename pattern matching, prefix normalisation,
-  `shortIssueId`, and next-ID computation with configurable prefixes.
-- **Filtering** (`tests/filtering.test.ts`) — search across titles/bodies/labels/projects/IDs,
-  multi-select status / project / priority / label filters, and `hasActiveFilters`.
-- **Sorting** (`tests/sorting.test.ts`) — created / due / priority ordering, undated-last
-  behaviour, tie-breaking by numeric ID, and malformed-date handling.
-- **Status & frontmatter** (`tests/status.test.ts`, `tests/frontmatter.test.ts`) — status cycling,
-  fallback defaults for unknown values, and date validation including impossible dates like
-  `31/02/2026`.
-
-## Production build
+A production build is minified:
 
 ```bash
 npm run build
 ```
 
-The build produces `main.js` in the repository root. Obsidian loads the plugin from `main.js`,
-`manifest.json`, and `styles.css`.
-
-**Editing the source is not enough — Obsidian only ever runs `main.js`.** After changing anything in
-`src/` or `styles.css`, rebuild and then reload the plugin (disable and re-enable it under
-**Settings → Community plugins**, or run **Reload app without saving**). `npm run dev` watches and
-rebuilds automatically, but the reload is still needed for Obsidian to pick up the new file.
-
-If esbuild refuses to run — for example its installed binary doesn't match the current platform,
-which happens when `node_modules` was installed on a different OS — there is a fallback bundler
-that uses `tsc` instead:
+If esbuild refuses to run — most often because `node_modules` was installed on
+a different OS than the one you are building on — there is a `tsc`-based
+fallback that produces a larger, unminified bundle with identical behaviour:
 
 ```bash
 npm run build:fallback
 ```
 
-It produces a larger, unminified `main.js` with identical behaviour. `npm run build` remains the
-supported path.
+`npm run build` remains the supported path, and is what releases are built with.
 
-## Screenshots
+## Testing
 
-### v0.6.0
+```bash
+npm run lint
+npm test
+```
 
-![v0.6 settings tab](screenshots/v0.6-settings-view.png)
+Tests use Node's built-in test runner (Node 20+) against the TypeScript sources
+via `jiti`. The suite is 174 tests covering settings normalisation, issue ID and
+filename handling, filtering, sorting, status and date coercion, frontmatter
+parsing, folder/prefix migration planning, and the label palette. CI runs lint,
+build and tests on Node 20, 22 and 24.
 
-### v0.5.0
+## Architecture
 
-![Issues sidebar](screenshots/v0.5-issues-sidebar.png)
-![Single-column Kanban view](screenshots/v0.5-issues-kanban-view.png)
-![Edit issue modal](screenshots/v0.5-edit-issue.png)
+`src/` is bundled by esbuild into `main.js` at the repository root. Obsidian
+loads `main.js`, `manifest.json` and `styles.css`.
 
-### v0.4.0
+```text
+src/
+  main.ts             Plugin lifecycle, commands, vault event wiring
+  issue-service.ts    Reads, writes, caches and migrates issue files
+  issue-modal.ts      New/edit issue form
+  tag-input.ts        Label tag-input with autocomplete
+  labels.ts           Label name → palette slot
+  dates.ts            Date parsing, formatting and comparison
+  constants.ts        Status/priority enums, field order, defaults
+  types.ts            Issue, IssueData, IssueStatus, IssuePriority
+  settings.ts         Settings tab UI
+  confirm-modal.ts    Reusable confirmation dialog
+  components/
+    issues-toolbar.ts   Search, filter dropdowns, sort, reset
+    issue-actions.ts    Edit/delete buttons, context menu, status changes
+    issue-meta.ts       Priority, labels, due date, source rendering
+  config/
+    settings.ts         Settings interface, defaults, validation, normalisation
+  filters/
+    issue-filter.ts     Search and multi-select filtering
+    issue-sort.ts       Sorting by created, due or priority
+  utils/
+    issue-id.ts         Prefix normalisation, filename matching, next ID
+    migration.ts        Pure folder-move and prefix-rename planning
+  views/
+    issues-view.ts      View coordinator: state, refresh, layout
+    issues-list.ts      List rendering
+    issues-kanban.ts    Kanban rendering and drag-and-drop
+```
 
-![Issues Kanban view](screenshots/v0.4-issues-kaban-view.png)
-![Full view](screenshots/v0.4-full-view.png)
+Two conventions worth knowing before you change things:
 
-### v0.3
+- **Pure logic is separated from Obsidian-dependent code** so it can be tested
+  without a running app. Filtering, sorting, ID handling, settings
+  normalisation and migration planning are all pure.
+- **No styles are assigned from JavaScript.** Anything visual belongs in
+  `styles.css`; the code only chooses class names. This is enforced by a test
+  and required for community-plugin review.
 
-![Issues sidebar with search and filters](screenshots/v0.3-issue-sidebar.png)
-![Edit issue modal](screenshots/v0.3-edit-issue.png)
+CSS class names are namespaced `obsidian-issues-*`. That prefix predates the
+rename to Vault Issues and is deliberately kept — renaming hundreds of
+selectors carries risk for no user-visible benefit.
 
-### v0.2
+## Contributing
 
-![Issues sidebar with metadata](screenshots/v0.2-issues-sidebar.png)
-![Edit issue modal](screenshots/v0.2-edit-issue.png)
+Bug reports, feature requests and pull requests are welcome. See
+[CONTRIBUTING.md](CONTRIBUTING.md) for the development setup and what a good
+report looks like, and [CHANGELOG.md](CHANGELOG.md) for release history.
 
-### v0.1
+## License
 
-![Issues sidebar](screenshots/v0.1-issues-tab.png)
-![Sidebar with issue open](screenshots/v0.1-view-issue-open.png)
-![Full view](screenshots/v0.1-full-view.png)
-![Full view with issue open](screenshots/v0.1-full-view-issue-open.png)
-
-## Roadmap
-
-v0.1.0 ✅ Core issue tracking
-v0.2.0 ✅ Metadata and editing
-v0.3.0 ✅ Search and filtering
-v0.4.0 ✅ Kanban
-v0.5.0 ✅ Knowledge-base integration
-v0.6.0 ✅ Configuration and migration
-v0.7.0 ✅ Reliability and architecture
-v0.8.0 ✅ Desktop UX and cleanup
-v0.9.0   Release candidate
-v1.0.0   Stable release
+[0BSD](LICENSE)
