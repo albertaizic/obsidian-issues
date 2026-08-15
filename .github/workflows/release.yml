@@ -3,10 +3,13 @@ name: Release Obsidian plugin
 on:
     push:
         tags:
-            - '*'
+            # Exact SemVer tags with no leading "v" — Obsidian requires the tag
+            # to match manifest.json's version verbatim.
+            - '[0-9]+.[0-9]+.[0-9]+'
+            - '[0-9]+.[0-9]+.[0-9]+-*'
 
 jobs:
-    build:
+    release:
         runs-on: ubuntu-latest
         permissions:
             contents: write
@@ -21,24 +24,70 @@ jobs:
                   node-version: 24
                   cache: 'npm'
 
-            - name: Build plugin
+            # Run before anything is built or published: a mismatched tag must
+            # fail the release, not produce a mislabelled one.
+            - name: Verify tag matches manifest.json and package.json
               run: |
-                  npm ci
-                  npm run build
+                  tag="${GITHUB_REF#refs/tags/}"
+                  manifest_version="$(node -p "require('./manifest.json').version")"
+                  package_version="$(node -p "require('./package.json').version")"
 
-            - name: Check for optional styles
-              id: styles
+                  echo "tag:              $tag"
+                  echo "manifest.json:    $manifest_version"
+                  echo "package.json:     $package_version"
+
+                  if [ "$tag" != "$manifest_version" ]; then
+                    echo "::error::Tag '$tag' does not match manifest.json version '$manifest_version'."
+                    exit 1
+                  fi
+
+                  if [ "$tag" != "$package_version" ]; then
+                    echo "::error::Tag '$tag' does not match package.json version '$package_version'."
+                    exit 1
+                  fi
+
+                  min_app_version="$(node -p "require('./manifest.json').minAppVersion")"
+                  versions_entry="$(node -p "require('./versions.json')['$tag'] ?? ''")"
+
+                  echo "minAppVersion:    $min_app_version"
+                  echo "versions.json:    $versions_entry"
+
+                  if [ "$versions_entry" != "$min_app_version" ]; then
+                    echo "::error::versions.json['$tag'] is '$versions_entry', expected minAppVersion '$min_app_version'."
+                    exit 1
+                  fi
+
+            - name: Install dependencies
+              run: npm ci
+
+            - name: Lint
+              run: npm run lint
+
+            - name: Test
+              run: npm test
+
+            - name: Build
+              run: npm run build
+
+            - name: Verify build output
               run: |
-                  [ -f styles.css ] && echo "exists=true" >> "$GITHUB_OUTPUT" || echo "exists=false" >> "$GITHUB_OUTPUT"
+                  for file in main.js manifest.json styles.css; do
+                    if [ ! -f "$file" ]; then
+                      echo "::error::Release asset '$file' is missing."
+                      exit 1
+                    fi
+                  done
 
             - name: Attest build provenance
               uses: actions/attest@v4
               with:
                   subject-path: |
                       main.js
-                      ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                      styles.css
 
-            - name: Create release
+            # Draft, so the maintainer reviews the title and notes and decides
+            # whether to mark it as a pre-release before publishing.
+            - name: Create draft release
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
@@ -47,4 +96,5 @@ jobs:
                   gh release create "$tag" \
                     --title="$tag" \
                     --draft \
-                    main.js manifest.json ${{ steps.styles.outputs.exists == 'true' && 'styles.css' || '' }}
+                    --notes="Review before publishing. See CHANGELOG.md for $tag." \
+                    main.js manifest.json styles.css
