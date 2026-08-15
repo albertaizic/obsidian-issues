@@ -58,8 +58,8 @@ describe('getLabelColorIndex', () => {
 
 describe('getLabelColorClass', () => {
   it('builds the class the stylesheet defines', () => {
-    assert.equal(getLabelColorClass('security'), 'is-label-color-0');
-    assert.equal(getLabelColorClass('chore'), 'is-label-color-9');
+    assert.equal(getLabelColorClass('security'), 'vault-issues-label-color-0');
+    assert.equal(getLabelColorClass('chore'), 'vault-issues-label-color-9');
   });
 });
 
@@ -68,8 +68,8 @@ describe('styles.css', () => {
     const css = readRepoFile('styles.css');
     for (let i = 0; i < LABEL_COLOR_COUNT; i++) {
       assert.ok(
-        css.includes(`.is-label-color-${i}`),
-        `styles.css is missing .is-label-color-${i}`,
+        css.includes(`.vault-issues-label-color-${i}`),
+        `styles.css is missing .vault-issues-label-color-${i}`,
       );
     }
   });

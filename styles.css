@@ -10,10 +10,10 @@
 
 /* The ten label colours. `getLabelColorIndex()` in `src/labels.ts` hashes a
    label name onto one of these slots and the element gets the matching
-   `.is-label-color-N` class — no colour is ever assigned from JavaScript.
-   Declared on `body` rather than inside `.obsidian-issues-view` because
-   labels also render in modals, which Obsidian mounts outside the view.
-   Override any of these in a theme or snippet to restyle the palette. */
+   `.vault-issues-label-color-N` class — no colour is ever assigned from
+   JavaScript. Declared on `body` rather than inside `.obsidian-issues-view`
+   because labels also render in modals, which Obsidian mounts outside the
+   view. Override any of these in a theme or snippet to restyle the palette. */
 body {
   --issue-label-color-0: #e11d21;
   --issue-label-color-1: #0e8048;
@@ -30,16 +30,16 @@ body {
   --issue-label-text: #ffffff;
 }
 
-.is-label-color-0 { --issue-label-bg: var(--issue-label-color-0); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-1 { --issue-label-bg: var(--issue-label-color-1); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-2 { --issue-label-bg: var(--issue-label-color-2); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-3 { --issue-label-bg: var(--issue-label-color-3); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-4 { --issue-label-bg: var(--issue-label-color-4); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-5 { --issue-label-bg: var(--issue-label-color-5); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-6 { --issue-label-bg: var(--issue-label-color-6); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-7 { --issue-label-bg: var(--issue-label-color-7); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-8 { --issue-label-bg: var(--issue-label-color-8); --issue-label-fg: var(--issue-label-text); }
-.is-label-color-9 { --issue-label-bg: var(--issue-label-color-9); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-0 { --issue-label-bg: var(--issue-label-color-0); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-1 { --issue-label-bg: var(--issue-label-color-1); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-2 { --issue-label-bg: var(--issue-label-color-2); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-3 { --issue-label-bg: var(--issue-label-color-3); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-4 { --issue-label-bg: var(--issue-label-color-4); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-5 { --issue-label-bg: var(--issue-label-color-5); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-6 { --issue-label-bg: var(--issue-label-color-6); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-7 { --issue-label-bg: var(--issue-label-color-7); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-8 { --issue-label-bg: var(--issue-label-color-8); --issue-label-fg: var(--issue-label-text); }
+.vault-issues-label-color-9 { --issue-label-bg: var(--issue-label-color-9); --issue-label-fg: var(--issue-label-text); }
 
 .obsidian-issues-view {
   --issue-due-today: var(--color-yellow, #d9a300);

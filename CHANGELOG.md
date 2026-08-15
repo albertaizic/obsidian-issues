@@ -20,7 +20,7 @@ user-facing features; no change to issue formats, settings or migrations.
   applied by writing CSS custom properties onto `element.style` at runtime.
   The hash that maps a label name to a palette slot is unchanged, so every
   label keeps the colour it already had, but the element now receives an
-  `.is-label-color-0` … `.is-label-color-9` class and the ten colour pairs are
+  `.vault-issues-label-color-0` … `.vault-issues-label-color-9` class and the ten colour pairs are
   declared in `styles.css`. Themes and snippets can override them.
 - **The label suggestion list is positioned by CSS.** It was a
   `position: fixed` element whose coordinates were measured and written from

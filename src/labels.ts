@@ -1,10 +1,11 @@
 /**
  * Size of the label palette. The colours themselves live in `styles.css` as
- * `.is-label-color-0` … `.is-label-color-9`; nothing here knows what they are.
+ * `.vault-issues-label-color-0` … `.vault-issues-label-color-9`; nothing here
+ * knows what they are.
  */
 export const LABEL_COLOR_COUNT = 10;
 
-const LABEL_COLOR_CLASS_PREFIX = 'is-label-color-';
+const LABEL_COLOR_CLASS_PREFIX = 'vault-issues-label-color-';
 
 /**
  * Maps a label name onto a palette slot. The hash is deliberately unchanged
