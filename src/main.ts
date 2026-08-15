@@ -58,7 +58,7 @@ export default class VaultIssuesPlugin extends Plugin implements IssuesViewHost 
 
     this.addCommand({
       id: 'toggle-issues-layout',
-      name: 'Toggle list / Kanban layout',
+      name: 'Toggle list / kanban layout',
       callback: () => {
         void this.toggleLayout();
       },
