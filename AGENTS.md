@@ -46,18 +46,46 @@ npm run build
 - **Actual file structure** (adapted from the generic template above):
     ```
     src/
-      main.ts            # Plugin entry point, lifecycle, commands, vault event wiring
-      issue-service.ts   # Reads, writes, caches, and migrates issue files
-      issues-view.ts     # The sidebar view: list and single-column Kanban rendering
-      issue-modal.ts     # New/edit issue form with tag-input labels
-      tag-input.ts       # Reusable tag-input component for labels
-      labels.ts          # Label colour assignment
-      dates.ts           # Date parsing, formatting, and comparison helpers
-      constants.ts       # Status/priority enums, field order, folder name
-      types.ts           # Issue, IssueData, IssueStatus, IssuePriority types
-      settings.ts        # Settings interface, defaults, settings tab
-      confirm-modal.ts   # Reusable confirmation dialog
+      main.ts             # Plugin entry point, lifecycle, commands, vault event wiring
+      issue-service.ts    # Reads, writes, caches, and migrates issue files
+      issue-modal.ts      # New/edit issue form
+      tag-input.ts        # Label tag-input with autocomplete
+      labels.ts           # Label name -> palette slot; colours live in styles.css
+      dates.ts            # Date parsing, formatting, and comparison helpers
+      constants.ts        # Status/priority enums, field order, folder and prefix defaults
+      types.ts            # Issue, IssueData, IssueStatus, IssuePriority types
+      settings.ts         # Settings tab UI; re-exports the config module
+      confirm-modal.ts    # Reusable confirmation dialog
+      components/
+        issues-toolbar.ts   # Search, filter dropdowns, sort, reset
+        issue-actions.ts    # Edit/delete buttons, context menu, status changes
+        issue-meta.ts       # Priority, labels, due date, and source rendering
+      config/
+        settings.ts         # Settings interface, defaults, validation, normalisation
+      filters/
+        issue-filter.ts     # Search and multi-select filtering
+        issue-sort.ts       # Sorting by created, due, or priority
+      utils/
+        issue-id.ts         # Prefix normalisation, filename matching, next-ID computation
+        migration.ts        # Pure folder-move and prefix-rename planning
+      views/
+        issues-view.ts      # View coordinator: state, refresh, layout
+        issues-list.ts      # List rendering
+        issues-kanban.ts    # Kanban rendering and drag-and-drop
     ```
+- **Supporting directories**: `tests/` holds the unit-test suite (Node's built-in
+  runner, run against the TypeScript sources via `jiti`); `tools/` holds
+  `bundle-fallback.mjs`, the `tsc`-based bundler used when esbuild cannot run.
+- **Module boundaries**: `config/`, `filters/` and `utils/` are pure — they take
+  plain data and return plain data, and pull nothing from `obsidian` at runtime
+  (a type-only `import type` is fine; it is erased at compile time). That is what
+  makes them unit-testable without a running app. Obsidian-dependent code lives in
+  `main.ts`, `issue-service.ts`, `views/` and `components/`. Put new logic on the
+  pure side of that line wherever it can go.
+- **Rendering responsibilities**: `views/issues-view.ts` coordinates state and
+  refresh only; `issues-list.ts` and `issues-kanban.ts` draw the two layouts, and
+  the shared row/card pieces live in `components/`. Don't move per-element drawing
+  back into the coordinator.
 - **Do not commit build artifacts**: Never commit `node_modules/`, `main.js`, or other generated files to version control.
 - Keep the plugin small. Avoid large dependencies. Prefer browser-compatible packages.
 - Generated output should be placed at the plugin root or `dist/` depending on your build setup. Release artifacts must end up at the top level of the plugin folder in the vault (`main.js`, `manifest.json`, `styles.css`).
