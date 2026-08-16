@@ -7,8 +7,13 @@ main.js
 data.json
 .DS_Store
 
-# Claude
+# Local development notes and assistant tooling — not part of the published
+# plugin or its documentation.
 .claude/
+AGENTS.md
+CODE-REVIEW.md
+MEMORY.md
+memory/
 
 # Fallback bundler staging dir
 .bundle-tmp/
