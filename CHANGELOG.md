@@ -4,19 +4,22 @@ All notable changes to Vault Issues are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Release tags do not carry a leading `v` — the tag for 0.9.0 is `0.9.0`.
+Release tags do not carry a leading `v` — the tag for 1.0.0 is `1.0.0`.
 
-## [Unreleased]
+## [1.0.0] — First stable release
 
 ### Changed
 
 - **README and documentation** rewritten for a third-party audience — clearer screenshots, polished prose, and a new "disabled when viewing an issue" note for the "Create issue for current note" command.
 - **Reset filters button** now uses the accent colour when any filters are active, matching the filter dropdowns.
 - **CONTRIBUTING.md** polished for external contributors.
+- **Lint fixes** — settings tab now implements `getSettingDefinitions()` for Obsidian 1.13+ settings search; description text uses sentence case.
+- **Version bumped to 1.0.0** — feature-complete, beta period concluded.
 
 ### Fixed
 
 - The "Create issue for current note" command is now disabled when the active file is already an issue file, preventing accidental circular references.
+- Toolbar now re-renders when filters change, so the Reset filters button updates its visual state immediately.
 
 ## [0.9.0] — Release candidate
 

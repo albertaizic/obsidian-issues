@@ -40,6 +40,13 @@ export class IssuesSettingTab extends PluginSettingTab {
     this.host = host;
   }
 
+  // The declarative settings API (Obsidian 1.13+) doesn't support our
+  // draft/apply workflow with custom validation. Return empty to satisfy
+  // the API while keeping our imperative implementation.
+  getSettingDefinitions(): never[] {
+    return [];
+  }
+
   display(): void {
     this.draft = { ...this.host.settings };
     this.render();
@@ -90,7 +97,7 @@ export class IssuesSettingTab extends PluginSettingTab {
 
     const prefixSetting = new Setting(containerEl)
       .setName('Issue ID prefix')
-      .setDesc('Prefix for issue filenames, e.g. "TASK" produces TASK-001. Changing this renames existing issues.')
+      .setDesc('Prefix for issue filenames, e.g. "task" produces task-001. Changing this renames existing issues.')
       .addText((input) => {
         input
           .setPlaceholder('ISSUE')
