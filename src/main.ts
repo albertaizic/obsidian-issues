@@ -51,6 +51,8 @@ export default class VaultIssuesPlugin extends Plugin implements IssuesViewHost 
       checkCallback: (checking) => {
         const activeFile = this.app.workspace.getActiveFile();
         if (activeFile === null) return false;
+        // Disable when the active file is already an issue file
+        if (this.isIssuesPath(activeFile.path)) return false;
         if (!checking) void this.createIssueForCurrentNote(activeFile);
         return true;
       },
