@@ -169,6 +169,7 @@ export class IssuesView extends ItemView {
 
     const callbacks: ToolbarCallbacks = {
       onFiltersChanged: () => {
+        this.toolbar?.render({ issues: this.issues, viewMode: this.viewMode });
         this.renderContent();
       },
       onResetOrLayoutChange: () => {
