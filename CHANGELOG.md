@@ -8,6 +8,16 @@ Release tags do not carry a leading `v` — the tag for 0.9.0 is `0.9.0`.
 
 ## [Unreleased]
 
+### Changed
+
+- **README and documentation** rewritten for a third-party audience — clearer screenshots, polished prose, and a new "disabled when viewing an issue" note for the "Create issue for current note" command.
+- **Reset filters button** now uses the accent colour when any filters are active, matching the filter dropdowns.
+- **CONTRIBUTING.md** polished for external contributors.
+
+### Fixed
+
+- The "Create issue for current note" command is now disabled when the active file is already an issue file, preventing accidental circular references.
+
 ## [0.9.0] — Release candidate
 
 Feature freeze. This release makes the existing 0.8 functionality ready for

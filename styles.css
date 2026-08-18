@@ -276,14 +276,29 @@ body {
   box-shadow: none;
   color: var(--text-muted);
   border: 1px solid var(--background-modifier-border);
-  opacity: 0.4;
-  transition: opacity 0.15s ease;
+  opacity: 0.5;
+  transition: opacity 0.15s ease, color 0.15s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 
-.obsidian-issues-toolbar.is-active-filters .obsidian-issues-clear-all,
+.obsidian-issues-clear-all.is-active,
+.obsidian-issues-toolbar.is-active-filters .obsidian-issues-clear-all {
+  opacity: 1;
+  color: var(--interactive-accent);
+  border-color: var(--interactive-accent);
+}
+
 .obsidian-issues-clear-all:hover,
 .obsidian-issues-clear-all:focus-visible {
   opacity: 1;
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.obsidian-issues-clear-all.is-active:hover,
+.obsidian-issues-toolbar.is-active-filters .obsidian-issues-clear-all:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
 }
 
 /* ----------------------------------------------------------- list rows -- */

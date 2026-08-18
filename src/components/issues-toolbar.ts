@@ -164,9 +164,10 @@ export class IssuesToolbar {
       this.callbacks.onFiltersChanged();
     });
 
+    const hasActive = hasActiveFilters(this.deps.filters);
     const resetButton = this.container.createEl('button', {
       text: 'Reset filters',
-      cls: 'obsidian-issues-clear-all',
+      cls: `obsidian-issues-clear-all${hasActive ? ' is-active' : ''}`,
       type: 'button',
     });
     resetButton.addEventListener('click', () => {
