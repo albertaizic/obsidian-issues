@@ -22,7 +22,7 @@ A GitHub Issues–inspired issue tracker for Obsidian. Issues are plain Markdown
 |:---:|:---:|
 | ![Editing tab](screenshots/editiing-tab.png) | ![Settings tab](screenshots/settings-tab.png) |
 
-> These screenshots reflect the current 0.9 release. A short demo GIF has not been recorded yet.
+> These screenshots reflect the current 1.0 release. A short demo GIF has not been recorded yet.
 
 ## Features
 
